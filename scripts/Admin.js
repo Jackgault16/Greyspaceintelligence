@@ -800,4 +800,24 @@ logoutLink.addEventListener("click", async () => {
 // ===============================
 // INIT
 // ===============================
+async function checkSessionOnLoad() {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) {
+    showAdminView(data.session.user);
+  } else {
+    loginView.style.display = "block";
+    adminView.style.display = "none";
+  }
+}
+
+function showAdminView(user) {
+  loginView.style.display = "none";
+  adminView.style.display = "block";
+  adminEmailDisplay.textContent = user.email;
+
+  setAutoTimestamp();
+  currentMode = "live";
+  setModeUI();
+}
+
 checkSessionOnLoad();
