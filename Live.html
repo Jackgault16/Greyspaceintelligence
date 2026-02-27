@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grey Space – Live Intelligence</title>
+
+    <link rel="stylesheet" href="styles/main.css">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet" />
+</head>
+<body>
+
+    <!-- HAMBURGER -->
+    <div class="menu-button" id="menuButton">
+        <div class="menu-line"></div>
+        <div class="menu-line"></div>
+        <div class="menu-line"></div>
+    </div>
+
+    <!-- SIDE MENU -->
+    <div class="side-menu" id="sideMenu">
+        <div class="close-menu" id="closeMenu">✕</div>
+        <h3>MENU</h3>
+        <ul>
+            <li onclick="window.location.href='index.html'">Home</li>
+            <li onclick="window.location.href='About.html'">About</li>
+            <li onclick="window.location.href='admin.html'">Admin</li>
+        </ul>
+    </div>
+
+    <div class="menu-overlay" id="menuOverlay"></div>
+
+    <!-- TITLE HEADER -->
+    <div class="title-header">
+        <h1>GREY SPACE</h1>
+    </div>
+
+    <!-- NAVIGATION -->
+    <nav class="navbar">
+        <ul class="nav-links">
+            <li onclick="window.location.href='index.html'">HOME</li>
+            <li onclick="window.location.href='briefing-room.html'">BRIEFING ROOM</li>
+            <li class="active" onclick="window.location.href='live.html'">LIVE</li>
+            <li onclick="window.location.href='map.html'">MAP</li>
+            <li onclick="window.location.href='analysis.html'">ANALYSIS CENTRE</li>
+        </ul>
+    </nav>
+
+    <!-- LIVE FEED -->
+    <section class="live-feed">
+
+        <h2>LATEST INTELLIGENCE</h2>
+
+        <!-- FILTERS -->
+        <div class="filters" style="margin-bottom: 30px;">
+
+            <div class="filter-select-wrapper">
+                <select id="regionFilter" class="filter-select">
+                    <option value="">All Regions</option>
+                    <option>North America</option>
+                    <option>South America</option>
+                    <option>Europe</option>
+                    <option>Middle East</option>
+                    <option>Africa</option>
+                    <option>Central Asia</option>
+                    <option>East Asia</option>
+                    <option>South Asia</option>
+                    <option>Southeast Asia</option>
+                    <option>Oceania</option>
+                    <option>Global / Multi-Region</option>
+                </select>
+            </div>
+
+            <div class="filter-select-wrapper">
+                <select id="categoryFilter" class="filter-select">
+                    <option value="">All Categories</option>
+                    <option>MILITARY</option>
+                    <option>POLITICAL</option>
+                    <option>ECONOMIC</option>
+                    <option>SOCIAL</option>
+                    <option>GREY SPACE</option>
+                </select>
+            </div>
+
+        </div>
+
+        <!-- FEED CARDS -->
+        <div class="feed-container" id="feed"></div>
+
+    </section>
+
+    <!-- MAP -->
+    <section class="map-zone">
+        <div id="intel-map"></div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+        <div class="footer-left">GREY SPACE INTELLIGENCE</div>
+        <div class="footer-center">Signal Over Noise</div>
+        <div class="footer-right">Version 0.1</div>
+    </footer>
+
+    <!-- MAPBOX -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
+
+    <!-- SUPABASE -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+
+    <!-- CONFIG + LIVE LOGIC -->
+    <script src="scripts/supabaseConfig.js"></script>
+    <script src="scripts/live.js"></script>
+
+    <!-- HAMBURGER MENU -->
+    <script>
+        const menuButton = document.getElementById("menuButton");
+        const sideMenu = document.getElementById("sideMenu");
+        const menuOverlay = document.getElementById("menuOverlay");
+        const closeMenu = document.getElementById("closeMenu");
+
+        menuButton.addEventListener("click", () => {
+            sideMenu.classList.add("open");
+            menuOverlay.classList.add("visible");
+        });
+
+        closeMenu.addEventListener("click", () => {
+            sideMenu.classList.remove("open");
+            menuOverlay.classList.remove("visible");
+        });
+
+        menuOverlay.addEventListener("click", () => {
+            sideMenu.classList.remove("open");
+            menuOverlay.classList.remove("visible");
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,477 @@
+/* ========== GLOBAL ========== */
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background: #000;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    letter-spacing: 0.5px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    width: 100%;
+}
+
+/* Prevent text selection */
+.timeline-container,
+.timeline-bar,
+.timeline-slider,
+.timeline-labels,
+.timeline-labels span,
+.timeline-current-box {
+    user-select: none;
+}
+
+/* ========== HAMBURGER MENU BUTTON ========== */
+.menu-button {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 28px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    z-index: 1001;
+}
+
+.menu-line {
+    width: 100%;
+    height: 4px;
+    background: #fff;
+}
+
+/* ========== SIDE MENU ========== */
+.side-menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 250px;
+    height: 100%;
+    background: #000;
+    border-right: 1px solid #222;
+    padding: 40px 20px;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 1002;
+}
+
+.side-menu.open {
+    transform: translateX(0);
+}
+
+.side-menu h3 {
+    margin-top: 0;
+    letter-spacing: 2px;
+}
+
+.side-menu ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+}
+
+.side-menu li {
+    padding: 10px 0;
+    cursor: pointer;
+    letter-spacing: 2px;
+    opacity: 0.8;
+}
+
+.side-menu li:hover {
+    opacity: 1;
+}
+
+/* CLOSE BUTTON */
+.close-menu {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.side-menu.open .close-menu {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* ========== MENU OVERLAY ========== */
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 1000;
+}
+
+.menu-overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* ========== TITLE ========== */
+.title-header {
+    text-align: center;
+    padding: 30px 0 10px 0;
+}
+
+.title-header h1 {
+    margin: 0;
+    font-size: 28px;
+    letter-spacing: 4px;
+}
+
+/* ========== NAVIGATION ========== */
+.navbar {
+    text-align: center;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #222;
+}
+
+.nav-links {
+    list-style: none;
+    display: inline-flex;
+    gap: 40px;
+    padding: 0;
+    margin: 0;
+}
+
+.nav-links li {
+    cursor: pointer;
+    opacity: 0.7;
+    letter-spacing: 2px;
+}
+
+.nav-links li:hover,
+.nav-links .active {
+    opacity: 1;
+}
+
+/* ========== MAP ZONE ========== */
+.map-zone {
+    height: 530px;
+    background: #111;
+    border-bottom: 1px solid #222;
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+#intel-map {
+    width: 100%;
+    height: 100%;
+}
+
+.intel-marker {
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.intel-marker svg {
+    display: block;
+}
+
+/* ========== TIMELINE ========== */
+.timeline-container {
+    padding: 40px 20px 20px 20px;
+    border-bottom: 1px solid #222;
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+.timeline-bar {
+    position: relative;
+    height: 2px;
+    background: #444;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 25px;
+}
+
+.timeline-slider {
+    position: absolute;
+    top: -6px;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: left 0.05s linear;
+    z-index: 100;
+    transform: translateX(-50%);
+}
+
+.timeline-tooltip {
+    position: absolute;
+    top: -35px;
+    padding: 4px 8px;
+    background: #000;
+    border: 1px solid #444;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 200;
+    max-width: 90vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.timeline-labels {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.timeline-labels span {
+    cursor: pointer;
+}
+
+.timeline-labels span:hover {
+    opacity: 1;
+}
+
+.timeline-current {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    overflow: hidden;
+    margin-top: 25px;
+}
+
+.timeline-current-box {
+    background: transparent;
+    border: 1px solid #444;
+    padding: 10px 24px;
+    color: #fff;
+    letter-spacing: 2px;
+    font-size: 12px;
+    text-align: center;
+    max-width: 90%;
+    box-sizing: border-box;
+}
+
+/* ========== FILTER BUTTONS ========== */
+.filters {
+    display: flex;
+    justify-content: center;
+    gap: 25px;
+    padding: 25px 0;
+    border-bottom: 1px solid #222;
+}
+
+.filters button {
+    background: transparent;
+    border: 1px solid #444;
+    padding: 10px 20px;
+    color: #fff;
+    letter-spacing: 2px;
+    cursor: pointer;
+}
+
+.filters button:hover,
+.filters button.active {
+    border-color: #fff;
+}
+
+/* ========== FEED ========== */
+.live-feed {
+    padding: 40px 50px;
+}
+
+.live-feed h2 {
+    letter-spacing: 3px;
+    margin-bottom: 25px;
+}
+
+.feed-container {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.feed-item {
+    padding: 20px;
+    background: #050505;
+    border: 1px solid #222;
+}
+
+.feed-item h3 {
+    margin: 0 0 10px 0;
+    letter-spacing: 1px;
+}
+
+.feed-item .timestamp {
+    font-size: 12px;
+    opacity: 0.5;
+    margin-bottom: 10px;
+}
+
+.feed-item .why {
+    margin-top: 10px;
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+/* ========== SYSTEM METRICS ========== */
+.system-metrics {
+    display: flex;
+    justify-content: space-between;
+    padding: 30px 50px;
+    border-top: 1px solid #222;
+    border-bottom: 1px solid #222;
+    margin-top: 40px;
+}
+
+.metric {
+    text-align: center;
+    flex: 1;
+}
+
+.metric-value {
+    display: block;
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    margin-bottom: 5px;
+}
+
+.metric-label {
+    font-size: 12px;
+    opacity: 0.6;
+    letter-spacing: 2px;
+}
+
+/* ========== FOOTER ========== */
+.footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 25px 50px;
+    border-top: 1px solid #222;
+    margin-top: 40px;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: #fff;
+}
+
+.footer-left,
+.footer-center,
+.footer-right {
+    opacity: 0.7;
+}
+
+.footer-left {
+    flex: 1;
+}
+
+.footer-center {
+    flex: 1;
+    text-align: center;
+}
+
+.footer-right {
+    flex: 1;
+    text-align: right;
+}
+/* CATEGORY TAGS */
+.category-tag {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 2px 8px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    border-radius: 3px;
+    opacity: 0.8;
+    background: #222;
+}
+
+/* OPTIONAL CATEGORY COLORS */
+.category-military { background: #8b0000; }
+.category-political { background: #003366; }
+.category-economic { background: #006600; }
+.category-social { background: #444444; }
+.category-grey\ space { background: #555555; }
+
+/* EXPANDED SECTION */
+.intel-expanded {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #333;
+    display: none;
+}
+
+.intel-expanded.visible {
+    display: block;
+}
+
+.intel-expanded .sources a {
+    color: #3b82f6;
+    text-decoration: none;
+}
+
+/* MATCHED DROPDOWN STYLE */
+.filter-select {
+    background: #000;
+    color: #fff;
+    border: 1px solid #444;
+    padding: 10px 20px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    font-size: 12px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    outline: none;
+    text-transform: uppercase;
+}
+
+/* HOVER + ACTIVE */
+.filter-select:hover,
+.filter-select:focus {
+    border-color: #fff;
+}
+
+/* WRAPPER TO ADD CUSTOM ARROW */
+.filter-select-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.filter-select-wrapper::after {
+    content: "▼";
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: #fff;
+    pointer-events: none;
+    opacity: 0.6;
+}
