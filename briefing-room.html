@@ -3,21 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Briefing Room – Grey Space Intelligence</title>
+  <title>Briefing Room | Grey Space Intelligence</title>
 
-  <!-- GLOBAL STYLES -->
   <link rel="stylesheet" href="styles/main.css" />
-
-  <!-- PAGE STYLES -->
   <link rel="stylesheet" href="styles/briefing-room.css" />
 
-  <!-- MAPBOX -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet" />
 </head>
 
-<body>
+<body class="gs-body">
 
-  <!-- HAMBURGER MENU BUTTON -->
+  <!-- HAMBURGER MENU -->
   <div class="menu-button" id="menuButton">
     <div class="menu-line"></div>
     <div class="menu-line"></div>
@@ -37,7 +33,7 @@
 
   <div class="menu-overlay" id="menuOverlay"></div>
 
-  <!-- TITLE HEADER (MATCHES ABOUT PAGE) -->
+  <!-- TITLE -->
   <header class="title-header">
     <h1>GREY SPACE</h1>
   </header>
@@ -49,11 +45,11 @@
       <li onclick="window.location.href='briefing-room.html'" class="active">BRIEFING ROOM</li>
       <li onclick="window.location.href='live.html'">LIVE</li>
       <li>MAP</li>
-      <li>ANALYSIS</li>
+      <li>ANALYSIS CENTRE</li>
     </ul>
   </nav>
 
-  <!-- MAIN CONTENT -->
+  <!-- MAIN -->
   <main class="brf-main">
 
     <!-- HERO -->
@@ -67,21 +63,20 @@
       </div>
     </section>
 
-    <!-- FILTER BAR -->
+    <!-- CONTROLS -->
     <section class="brf-controls">
       <div class="brf-controls__inner">
 
-        <!-- CATEGORY TABS -->
         <div class="brf-controls__categories">
           <button class="brf-tab brf-tab--active" data-category="all">All</button>
           <button class="brf-tab" data-category="military">Military</button>
           <button class="brf-tab" data-category="political">Political</button>
           <button class="brf-tab" data-category="social">Social</button>
           <button class="brf-tab" data-category="economic">Economic</button>
+          
           <button class="brf-tab" data-category="greyspace">Grey Space</button>
         </div>
 
-        <!-- FILTERS -->
         <div class="brf-controls__filters">
           <select class="brf-select" id="brf-region-filter">
             <option value="all">All regions</option>
@@ -115,7 +110,7 @@
 
   </main>
 
-  <!-- MODAL -->
+  <!-- FULL ARTICLE MODAL -->
   <div class="brf-modal" id="brf-modal" aria-hidden="true">
     <div class="brf-modal__backdrop" data-modal-close></div>
 
@@ -125,45 +120,8 @@
     </div>
   </div>
 
-  <!-- FOOTER (MATCHES ABOUT PAGE) -->
-  <footer class="footer">
-    <div class="footer-left">GREY SPACE INTELLIGENCE</div>
-    <div class="footer-center">Signal Over Noise</div>
-    <div class="footer-right">Version 0.1</div>
-  </footer>
-
-  <!-- SCRIPTS -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
-
-  <!-- SUPABASE -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script src="scripts/supabaseConfig.js"></script>
-
-  <!-- PAGE LOGIC -->
   <script src="scripts/briefing-room.js"></script>
-
-  <!-- MENU JS -->
-  <script>
-    const menuButton = document.getElementById("menuButton");
-    const sideMenu = document.getElementById("sideMenu");
-    const menuOverlay = document.getElementById("menuOverlay");
-    const closeMenu = document.getElementById("closeMenu");
-
-    menuButton.addEventListener("click", () => {
-      sideMenu.classList.add("open");
-      menuOverlay.classList.add("visible");
-    });
-
-    closeMenu.addEventListener("click", () => {
-      sideMenu.classList.remove("open");
-      menuOverlay.classList.remove("visible");
-    });
-
-    menuOverlay.addEventListener("click", () => {
-      sideMenu.classList.remove("open");
-      menuOverlay.classList.remove("visible");
-    });
-  </script>
 
 </body>
 </html>

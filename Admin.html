@@ -38,27 +38,6 @@
             opacity: 0.7;
         }
 
-        .admin-mode-switch {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .admin-mode-switch button {
-            padding: 8px 14px;
-            border-radius: 6px;
-            background: #0b0b12;
-            border: 1px solid #26263a;
-            color: #f5f5f5;
-            cursor: pointer;
-            font-size: 0.85rem;
-        }
-
-        .admin-mode-switch button.active {
-            border-color: #4f7cff;
-            background: #111523;
-        }
-
         .admin-grid {
             display: grid;
             grid-template-columns: 1.2fr 1fr;
@@ -147,6 +126,11 @@
             color: #ef4444;
         }
 
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
         .intel-list {
             max-height: 420px;
             overflow-y: auto;
@@ -176,8 +160,7 @@
             opacity: 0.7;
         }
 
-        #adminMap,
-        #br-map {
+        #adminMap {
             width: 100%;
             height: 260px;
             border-radius: 8px;
@@ -283,179 +266,91 @@
             </div>
         </div>
 
-        <!-- MODE SWITCH -->
-        <div class="admin-mode-switch">
-            <button id="modeLive" class="active">LIVE INTEL</button>
-            <button id="modeBriefings">BRIEFING ROOM</button>
-        </div>
-
         <div class="admin-grid">
 
-            <!-- LEFT: EDITOR -->
-            <div class="admin-card" id="editorCard">
+            <!-- LEFT: Editor -->
+            <div class="admin-card">
+                <h2>INTEL EDITOR</h2>
 
-                <!-- LIVE INTEL EDITOR -->
-                <div id="liveEditor">
-                    <h2>INTEL EDITOR</h2>
+                <label for="intelTitle">Title</label>
+                <input id="intelTitle" type="text" placeholder="Headline">
 
-                    <label for="intelTitle">Title</label>
-                    <input id="intelTitle" type="text" placeholder="Headline">
+                <label for="intelSummary">Summary</label>
+                <textarea id="intelSummary" placeholder="One or two lines of context"></textarea>
 
-                    <label for="intelSummary">Summary</label>
-                    <textarea id="intelSummary" placeholder="One or two lines of context"></textarea>
+                <label for="intelDetails">Details</label>
+                <textarea id="intelDetails" placeholder="Deeper context, implications, sources, etc."></textarea>
 
-                    <label for="intelDetails">Details</label>
-                    <textarea id="intelDetails" placeholder="Deeper context, implications, sources, etc."></textarea>
-
-                    <div class="admin-row">
-                        <div>
-                            <label for="intelRegion">Region</label>
-                            <select id="intelRegion">
-                                <option value="">Select…</option>
-                                <option>North America</option>
-                                <option>South America</option>
-                                <option>Europe</option>
-                                <option>Middle East</option>
-                                <option>Africa</option>
-                                <option>Central Asia</option>
-                                <option>East Asia</option>
-                                <option>South Asia</option>
-                                <option>Southeast Asia</option>
-                                <option>Oceania</option>
-                                <option>Global / Multi-Region</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="intelCategory">Category</label>
-                            <select id="intelCategory">
-                                <option value="">Select…</option>
-                                <option value="MILITARY">MILITARY</option>
-                                <option value="POLITICAL">POLITICAL</option>
-                                <option value="ECONOMIC">ECONOMIC</option>
-                                <option value="SOCIAL">SOCIAL</option>
-                                <option value="GREY SPACE">GREY SPACE</option>
-                            </select>
-                        </div>
+                <div class="admin-row">
+                    <div>
+                        <label for="intelRegion">Region</label>
+                        <select id="intelRegion">
+                            <option value="">Select…</option>
+                            <option>North America</option>
+                            <option>South America</option>
+                            <option>Europe</option>
+                            <option>Middle East</option>
+                            <option>Africa</option>
+                            <option>Central Asia</option>
+                            <option>East Asia</option>
+                            <option>South Asia</option>
+                            <option>Southeast Asia</option>
+                            <option>Oceania</option>
+                            <option>Global / Multi-Region</option>
+                        </select>
                     </div>
-
-                    <div class="admin-row">
-                        <div>
-                            <label for="intelTimestamp">Timestamp</label>
-                            <input id="intelTimestamp" type="datetime-local">
-                        </div>
-                        <div>
-                            <label for="intelSources">Sources</label>
-                            <input id="intelSources" type="text" placeholder="Comma-separated URLs or labels">
-                        </div>
+                    <div>
+                        <label for="intelCategory">Category</label>
+                        <select id="intelCategory">
+                            <option value="">Select…</option>
+                            <option value="MILITARY">MILITARY</option>
+                            <option value="POLITICAL">POLITICAL</option>
+                            <option value="ECONOMIC">ECONOMIC</option>
+                            <option value="SOCIAL">SOCIAL</option>
+                            <option value="GREY SPACE">GREY SPACE</option>
+                        </select>
                     </div>
-
-                    <div class="admin-row">
-                        <div>
-                            <label for="intelLat">Latitude</label>
-                            <input id="intelLat" type="number" step="0.000001" placeholder="Click map or type">
-                        </div>
-                        <div>
-                            <label for="intelLng">Longitude</label>
-                            <input id="intelLng" type="number" step="0.000001" placeholder="Click map or type">
-                        </div>
-                    </div>
-
-                    <label for="citySearch">City search</label>
-                    <input id="citySearch" type="text" placeholder="Type a city name and press Enter">
-
-                    <div id="adminMap"></div>
-
-                    <div class="admin-actions">
-                        <button class="btn-primary" id="publishButton">PUBLISH / UPDATE</button>
-                        <button class="btn-secondary" id="resetFormButton">CLEAR FORM</button>
-                        <button class="btn-danger" id="deleteButton" style="display:none;">DELETE</button>
-                    </div>
-
-                    <div id="editorStatus" style="margin-top:8px;font-size:0.75rem;opacity:0.7;"></div>
                 </div>
 
-                <!-- BRIEFING ROOM EDITOR -->
-                <div id="briefingEditor" style="display:none;">
-                    <h2>BRIEFING EDITOR</h2>
-
-                    <label>Title</label>
-                    <input id="br-title" type="text" placeholder="Briefing title">
-
-                    <label>Category</label>
-                    <select id="br-category">
-                        <option value="military">Military</option>
-                        <option value="political">Political</option>
-                        <option value="economic">Economic</option>
-                        <option value="social">Social</option>
-                        <option value="greyspace">Grey Space</option>
-                    </select>
-
-                    <label>Region</label>
-                    <select id="br-region">
-                        <option>North America</option>
-                        <option>South America</option>
-                        <option>Europe</option>
-                        <option>Middle East</option>
-                        <option>Africa</option>
-                        <option>Central Asia</option>
-                        <option>East Asia</option>
-                        <option>South Asia</option>
-                        <option>Southeast Asia</option>
-                        <option>Oceania</option>
-                        <option>Global / Multi-Region</option>
-                    </select>
-
-                    <label>Risk Level</label>
-                    <select id="br-risk">
-                        <option value="high">High</option>
-                        <option value="med">Medium</option>
-                        <option value="low">Low</option>
-                    </select>
-
-                    <label>Priority</label>
-                    <select id="br-priority">
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
-                    </select>
-
-                    <label>Summary</label>
-                    <textarea id="br-summary" placeholder="Short summary"></textarea>
-
-                    <label>Bullet Points (one per line)</label>
-                    <textarea id="br-points"></textarea>
-
-                    <label>Analysis</label>
-                    <textarea id="br-analysis"></textarea>
-
-                    <label>Longitude</label>
-                    <input id="br-lng" type="number" step="0.000001">
-
-                    <label>Latitude</label>
-                    <input id="br-lat" type="number" step="0.000001">
-
-                    <label>Zoom</label>
-                    <input id="br-zoom" type="number" value="5">
-
-                    <label for="br-city-search">City search</label>
-                    <input id="br-city-search" type="text" placeholder="Type a city name and press Enter">
-
-                    <div id="br-map"></div>
-
-                    <div class="admin-actions">
-                        <button class="btn-primary" id="br-publish">PUBLISH / UPDATE</button>
-                        <button class="btn-secondary" id="br-reset">CLEAR FORM</button>
-                        <button class="btn-danger" id="br-delete" style="display:none;">DELETE</button>
+                <div class="admin-row">
+                    <div>
+                        <label for="intelTimestamp">Timestamp</label>
+                        <input id="intelTimestamp" type="datetime-local">
                     </div>
-
-                    <div id="br-status" style="margin-top:8px;font-size:0.75rem;opacity:0.7;"></div>
+                    <div>
+                        <label for="intelSources">Sources</label>
+                        <input id="intelSources" type="text" placeholder="Comma-separated URLs or labels">
+                    </div>
                 </div>
 
+                <div class="admin-row">
+                    <div>
+                        <label for="intelLat">Latitude</label>
+                        <input id="intelLat" type="number" step="0.000001" placeholder="Click map or type">
+                    </div>
+                    <div>
+                        <label for="intelLng">Longitude</label>
+                        <input id="intelLng" type="number" step="0.000001" placeholder="Click map or type">
+                    </div>
+                </div>
+
+                <label for="citySearch">City search</label>
+                <input id="citySearch" type="text" placeholder="Type a city name and press Enter">
+
+                <div id="adminMap"></div>
+
+                <div class="admin-actions">
+                    <button class="btn-primary" id="publishButton">PUBLISH / UPDATE</button>
+                    <button class="btn-secondary" id="resetFormButton">CLEAR FORM</button>
+                    <button class="btn-danger" id="deleteButton" style="display:none;">DELETE</button>
+                </div>
+
+                <div id="editorStatus" style="margin-top:8px;font-size:0.75rem;opacity:0.7;"></div>
             </div>
 
-            <!-- RIGHT: LIST -->
+            <!-- RIGHT: Existing Intel -->
             <div class="admin-card">
-                <h2 id="listTitle">EXISTING INTEL</h2>
+                <h2>EXISTING INTEL</h2>
                 <div class="intel-list" id="intelList"></div>
             </div>
 

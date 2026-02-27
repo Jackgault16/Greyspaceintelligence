@@ -1,52 +1,4 @@
 /* ============================================================
-   ENVIRONMENT VARIABLES (Cloudflare Pages)
-   ============================================================ */
-// Add these in Cloudflare Pages → Settings → Environment Variables:
-// MAPBOX_TOKEN
-// SUPABASE_URL
-// SUPABASE_ANON_KEY
-
-const MAPBOX_TOKEN_PUBLIC = MAPBOX_TOKEN;
-const SUPABASE_URL_PUBLIC = SUPABASE_URL;
-const SUPABASE_ANON_KEY_PUBLIC = SUPABASE_ANON_KEY;
-
-/* ============================================================
-   SUPABASE CLIENT
-   ============================================================ */
-const supabase = window.supabase.createClient(
-    SUPABASE_URL_PUBLIC,
-    SUPABASE_ANON_KEY_PUBLIC
-);
-
-/* ============================================================
-   FETCH LIVE INTEL (REST API)
-   ============================================================ */
-async function fetchLiveIntel({ limit = 50, days = 30 } = {}) {
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-    const url =
-        `${SUPABASE_URL_PUBLIC}/rest/v1/live_intel` +
-        `?select=*` +
-        `&timestamp=gte.${encodeURIComponent(since)}` +
-        `&order=timestamp.desc` +
-        `&limit=${limit}`;
-
-    const res = await fetch(url, {
-        headers: {
-            apikey: SUPABASE_ANON_KEY_PUBLIC,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY_PUBLIC}`
-        }
-    });
-
-    if (!res.ok) {
-        console.error("Failed to fetch live intel", await res.text());
-        return [];
-    }
-
-    return await res.json();
-}
-
-/* ============================================================
    GLOBAL MENU + NAVIGATION
    ============================================================ */
 
@@ -82,6 +34,7 @@ const menuAbout = document.getElementById("menuAbout");
 if (menuHome) menuHome.onclick = () => (window.location.href = "index.html");
 if (menuAbout) menuAbout.onclick = () => (window.location.href = "About.html");
 
+
 /* ============================================================
    TIMELINE CHECK
    ============================================================ */
@@ -93,8 +46,9 @@ const timelineExists =
     document.getElementById("timelineLabels") &&
     document.getElementById("timelineCurrentBox");
 
+
 /* ============================================================
-   LATEST INTELLIGENCE FEED
+   LATEST INTELLIGENCE FEED (Supabase-powered)
    ============================================================ */
 
 const feedContainer = document.getElementById("feed");
@@ -105,6 +59,7 @@ if (feedContainer) {
 
 async function loadHomeFeed() {
     try {
+        // Latest 7 items from last 30 days
         const data = await fetchLiveIntel({ limit: 7, days: 30 });
 
         const feedData = data.map(item => ({
@@ -134,8 +89,9 @@ async function loadHomeFeed() {
     }
 }
 
+
 /* ============================================================
-   MAP / EVENTS: CATEGORY COLORS
+   MAP / EVENTS: CATEGORY COLORS & EVENT DATA (Supabase-backed)
    ============================================================ */
 
 const categoryColors = {
@@ -146,14 +102,20 @@ const categoryColors = {
     "GREY SPACE": "#22d3ee"
 };
 
+// Kept for potential future use, not strictly required now
 function isoHoursAgo(hours) {
     return new Date(Date.now() - hours * 3600 * 1000).toISOString();
 }
 
+// Will be filled from Supabase
 let eventsData = [];
+
 let activeMarkers = [];
 let selectedCategories = ["ALL"];
+
+// This will be assigned later, but referenced by timeline
 let updateMarkerVisibility = () => {};
+
 
 /* ============================================================
    TIMELINE SYSTEM
@@ -330,15 +292,17 @@ if (timelineExists) {
     updateTimeDisplays(0, false);
 }
 
+
 /* ============================================================
-   MAPBOX: INIT INTELLIGENCE MAP
+   MAPBOX: INIT INTELLIGENCE MAP (equalEarth)
    ============================================================ */
 
 const intelMapContainer = document.getElementById("intel-map");
 let intelMap = null;
 
 if (intelMapContainer && typeof mapboxgl !== "undefined") {
-    mapboxgl.accessToken = MAPBOX_TOKEN_PUBLIC;
+    mapboxgl.accessToken =
+        "pk.eyJ1IjoiamFja2dhdWx0MTYiLCJhIjoiY21tM3Jsc2lzMDRnYzJxc2E5NXhiejRyaSJ9.Cf2rNQKOAO307w851VIzxw";
 
     intelMap = new mapboxgl.Map({
         container: "intel-map",
@@ -355,9 +319,11 @@ if (intelMapContainer && typeof mapboxgl !== "undefined") {
     intelMap.touchZoomRotate.disableRotation();
 
     intelMap.on("load", () => {
+        // Once map is ready, load events from Supabase
         loadMapEventsFromSupabase();
     });
 }
+
 
 /* ============================================================
    MAP EVENTS FROM SUPABASE
@@ -365,8 +331,10 @@ if (intelMapContainer && typeof mapboxgl !== "undefined") {
 
 async function loadMapEventsFromSupabase() {
     try {
+        // Pull up to 200 events from last 7 days
         const data = await fetchLiveIntel({ limit: 200, days: 7 });
 
+        // Only keep rows with lat/lng
         eventsData = data
             .filter(item => item.lat != null && item.lng != null)
             .map(item => ({
@@ -376,17 +344,20 @@ async function loadMapEventsFromSupabase() {
                 lng: item.lng,
                 category: (item.category || "").toUpperCase(),
                 timestamp: item.timestamp,
-                url: null
+                url: null // or build a URL if you later add one
             }));
 
+        // Clear existing markers if any
         activeMarkers.forEach(m => m.marker.remove());
         activeMarkers = eventsData.map(ev => addEventMarker(ev));
 
+        // Initial visibility at NOW (0 hours ago)
         updateMarkerVisibility(0);
     } catch (err) {
         console.error("Error loading map events from Supabase:", err);
     }
 }
+
 
 /* ============================================================
    MAPBOX: MARKER SVG + API
@@ -421,8 +392,9 @@ function addEventMarker(event) {
     return { marker, event };
 }
 
+
 /* ============================================================
-   TIME-BASED MARKER VISIBILITY
+   TIME-BASED MARKER VISIBILITY (24h WINDOW)
    ============================================================ */
 
 updateMarkerVisibility = function (hoursAgo) {
@@ -447,8 +419,9 @@ updateMarkerVisibility = function (hoursAgo) {
     });
 };
 
+
 /* ============================================================
-   CATEGORY FILTER BUTTONS
+   CATEGORY FILTER BUTTONS (INCLUDING "ALL")
    ============================================================ */
 
 const filterButtons = document.querySelectorAll(".filters button");
