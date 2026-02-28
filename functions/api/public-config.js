@@ -4,7 +4,7 @@ export const onRequestGet = async ({ env }) => {
         SUPABASE_URL: env.SUPABASE_URL || "",
         SUPABASE_ANON_KEY: env.SUPABASE_ANON_KEY || "",
         LIVE_INTEL_TABLE: env.LIVE_INTEL_TABLE || "live_intel",
-        BRIEFING_INTEL_TABLE: env.BRIEFING_INTEL_TABLE || "briefing_intel"
+        BRIEFING_INTEL_TABLE: env.BRIEFING_INTEL_TABLE || "briefing_room"
     };
 
     return new Response(JSON.stringify(payload), {

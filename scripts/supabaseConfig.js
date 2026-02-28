@@ -18,7 +18,7 @@ function loadPublicConfigSync() {
         SUPABASE_URL: "",
         SUPABASE_ANON_KEY: "",
         LIVE_INTEL_TABLE: "live_intel",
-        BRIEFING_INTEL_TABLE: "briefing_intel"
+        BRIEFING_INTEL_TABLE: "briefing_room"
     };
 }
 
@@ -27,9 +27,9 @@ const MAPBOX_TOKEN = PUBLIC_CONFIG.MAPBOX_TOKEN || "";
 const SUPABASE_URL = PUBLIC_CONFIG.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = PUBLIC_CONFIG.SUPABASE_ANON_KEY || "";
 const LIVE_INTEL_TABLE = PUBLIC_CONFIG.LIVE_INTEL_TABLE || "live_intel";
-const BRIEFING_INTEL_TABLE_RAW = PUBLIC_CONFIG.BRIEFING_INTEL_TABLE || "briefing_intel";
+const BRIEFING_INTEL_TABLE_RAW = PUBLIC_CONFIG.BRIEFING_INTEL_TABLE || "briefing_room";
 const BRIEFING_INTEL_TABLE =
-    BRIEFING_INTEL_TABLE_RAW === LIVE_INTEL_TABLE ? "briefing_intel" : BRIEFING_INTEL_TABLE_RAW;
+    BRIEFING_INTEL_TABLE_RAW === LIVE_INTEL_TABLE ? "briefing_room" : BRIEFING_INTEL_TABLE_RAW;
 
 if (!MAPBOX_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error("Missing public config values. Set MAPBOX_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY in Cloudflare.");
