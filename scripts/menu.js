@@ -2,24 +2,34 @@
    GLOBAL MENU + NAVIGATION
    ============================================================ */
 
-const menuButton = document.getElementById("menuButton");
-const sideMenu = document.getElementById("sideMenu");
-const closeMenu = document.getElementById("closeMenu");
-const menuOverlay = document.getElementById("menuOverlay");
+function initMenu() {
+    const menuButton = document.getElementById("menuButton");
+    const sideMenu = document.getElementById("sideMenu");
+    const closeMenu = document.getElementById("closeMenu");
+    const menuOverlay = document.getElementById("menuOverlay");
 
-function openMenu() {
-    if (!sideMenu || !menuOverlay) return;
-    sideMenu.classList.add("open");
-    menuOverlay.classList.add("visible");
+    if (!menuButton || !sideMenu || !closeMenu || !menuOverlay) return;
+    if (menuButton.dataset.menuBound === "1") return;
+
+    const openMenu = () => {
+        sideMenu.classList.add("open");
+        menuOverlay.classList.add("visible");
+    };
+
+    const closeMenuPanel = () => {
+        sideMenu.classList.remove("open");
+        menuOverlay.classList.remove("visible");
+    };
+
+    menuButton.addEventListener("click", openMenu);
+    closeMenu.addEventListener("click", closeMenuPanel);
+    menuOverlay.addEventListener("click", closeMenuPanel);
+
+    menuButton.dataset.menuBound = "1";
 }
 
-function closeMenuPanel() {
-    if (!sideMenu || !menuOverlay) return;
-    sideMenu.classList.remove("open");
-    menuOverlay.classList.remove("visible");
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initMenu);
+} else {
+    initMenu();
 }
-
-if (menuButton) menuButton.addEventListener("click", openMenu);
-if (closeMenu) closeMenu.addEventListener("click", closeMenuPanel);
-if (menuOverlay) menuOverlay.addEventListener("click", closeMenuPanel);
-
