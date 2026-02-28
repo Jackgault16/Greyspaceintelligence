@@ -476,3 +476,151 @@ body {
     pointer-events: none;
     opacity: 0.6;
 }
+
+/* ========== RESPONSIVE (TABLET/MOBILE) ========== */
+@media (max-width: 1024px) {
+    .title-header h1 {
+        font-size: 24px;
+        letter-spacing: 3px;
+    }
+
+    .navbar {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .nav-links {
+        min-width: max-content;
+        gap: 24px;
+        padding: 0 20px;
+        box-sizing: border-box;
+    }
+
+    .map-zone {
+        height: 480px;
+    }
+
+    .timeline-container {
+        padding: 28px 14px 16px;
+    }
+
+    .timeline-labels {
+        font-size: 11px;
+    }
+
+    .filters {
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 18px 12px;
+    }
+
+    .filter-select-wrapper {
+        min-width: 220px;
+    }
+
+    .live-feed {
+        padding: 30px 20px;
+    }
+
+    .system-metrics {
+        flex-wrap: wrap;
+        gap: 18px;
+        padding: 24px 20px;
+    }
+
+    .metric {
+        flex: 1 1 calc(50% - 18px);
+    }
+
+    .footer {
+        padding: 20px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .footer-left,
+    .footer-center,
+    .footer-right {
+        flex: 1 1 100%;
+        text-align: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .menu-button {
+        top: 14px;
+        left: 14px;
+        width: 26px;
+        height: 22px;
+    }
+
+    .menu-line {
+        height: 3px;
+    }
+
+    .side-menu {
+        width: min(86vw, 300px);
+    }
+
+    .title-header {
+        padding: 22px 0 8px;
+    }
+
+    .title-header h1 {
+        font-size: 22px;
+        letter-spacing: 2px;
+    }
+
+    .nav-links {
+        gap: 18px;
+    }
+
+    .nav-links li {
+        font-size: 13px;
+        letter-spacing: 1.5px;
+    }
+
+    .map-zone {
+        height: 420px;
+    }
+
+    .timeline-labels {
+        gap: 18px;
+        overflow-x: auto;
+        justify-content: flex-start;
+        padding-bottom: 4px;
+    }
+
+    .timeline-current-box {
+        font-size: 11px;
+        letter-spacing: 1px;
+        padding: 9px 14px;
+    }
+
+    .filters button {
+        padding: 9px 14px;
+        font-size: 12px;
+        letter-spacing: 1px;
+    }
+
+    .filter-select-wrapper {
+        width: min(100%, 320px);
+    }
+
+    .filter-select {
+        width: 100%;
+    }
+
+    .live-feed h2 {
+        font-size: 30px;
+        margin-bottom: 18px;
+    }
+
+    .feed-item {
+        padding: 16px;
+    }
+
+    .feed-item h3 {
+        font-size: 20px;
+    }
+}

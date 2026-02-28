@@ -35,3 +35,28 @@
     border-left: 4px solid #888;
     padding-left: 32px;
 }
+@media (max-width: 768px) {
+    .about-wrapper {
+        padding: 56px 14px 80px;
+    }
+
+    .about-block {
+        padding: 24px 18px;
+        margin: 18px auto;
+        border-radius: 8px;
+    }
+
+    .about-block:first-of-type {
+        padding-left: 18px;
+    }
+
+    .about-block h2 {
+        font-size: 22px;
+        letter-spacing: 2px;
+    }
+
+    .about-block p {
+        font-size: 15px;
+        line-height: 1.6;
+    }
+}

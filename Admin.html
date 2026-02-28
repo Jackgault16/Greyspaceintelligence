@@ -217,6 +217,44 @@
             font-size: 0.75rem;
             opacity: 0.7;
         }
+
+        @media (max-width: 1024px) {
+            .admin-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .admin-wrapper {
+                margin: 60px auto 24px;
+                padding: 0 12px;
+            }
+
+            .admin-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+
+            .admin-row {
+                flex-direction: column;
+                gap: 0;
+            }
+
+            .admin-actions {
+                flex-wrap: wrap;
+            }
+
+            .btn-primary,
+            .btn-secondary,
+            .btn-danger {
+                width: 100%;
+            }
+
+            #adminMap {
+                height: 220px;
+            }
+        }
     </style>
 </head>
 <body>
