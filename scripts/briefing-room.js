@@ -163,6 +163,28 @@ function parseIndicators(item, detailsText) {
     return raw.map(v => String(v).trim()).filter(Boolean).slice(0, 4);
   }
   if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsedJson = JSON.parse(trimmed);
+        if (Array.isArray(parsedJson)) {
+          return parsedJson.map(v => String(v).trim()).filter(Boolean).slice(0, 4);
+        }
+      } catch (_) {
+        // Continue into string split fallback.
+      }
+    }
+
+    // Postgres text[] style: {"a","b"}
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      return trimmed
+        .slice(1, -1)
+        .split(",")
+        .map(v => v.trim().replace(/^"(.*)"$/, "$1"))
+        .filter(Boolean)
+        .slice(0, 4);
+    }
+
     const parsed = raw
       .split(/\r?\n|;/)
       .map(v => v.trim())
@@ -203,6 +225,22 @@ function formatUpdated(ts) {
   return new Date(ts).toLocaleString();
 }
 
+function parseTimestampMs(ts) {
+  if (!ts) return null;
+  const value = new Date(ts).getTime();
+  return Number.isFinite(value) ? value : null;
+}
+
+function shouldShowUpdated(publishedAt, updatedAt) {
+  const updatedMs = parseTimestampMs(updatedAt);
+  if (!updatedMs) return false;
+
+  const publishedMs = parseTimestampMs(publishedAt);
+  if (!publishedMs) return true;
+
+  return Math.abs(updatedMs - publishedMs) > 5 * 60 * 1000;
+}
+
 function impactClassName(impact) {
   return `impact-${impact.toLowerCase()}`;
 }
@@ -222,7 +260,9 @@ function toBriefingItem(item) {
     title: item.title || "Untitled",
     category: normalizedCategory || "greyspace",
     region: item.region || item.theater || "Global / Multi-Region",
-    timestamp: item.timestamp || new Date().toISOString(),
+    timestamp: item.timestamp || item.published_at || item.created_at || new Date().toISOString(),
+    publishedAt: item.published_at || item.timestamp || item.created_at || null,
+    updatedAt: item.updated_at || item.updatedAt || null,
     risk: normalizeRisk(item.risk),
     priority: normalizePriority(item.priority),
     status: normalizeStatus(item.status),
@@ -275,6 +315,9 @@ function renderBriefings(data) {
     const sourcesLis = (brief.sources || [])
       .map(s => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.name}</a></li>`)
       .join("");
+    const updatedPill = shouldShowUpdated(brief.publishedAt, brief.updatedAt)
+      ? `<span class="pill">Updated: ${formatUpdated(brief.updatedAt)}</span>`
+      : "";
 
     card.innerHTML = `
       <div class="card-header">
@@ -327,8 +370,7 @@ function renderBriefings(data) {
 
       <div class="card-footer">
         <span class="pill">${brief.category.toUpperCase()}</span>
-        <span class="pill">${brief.region}</span>
-        <span class="pill">Updated: ${formatUpdated(brief.timestamp)}</span>
+        ${updatedPill}
       </div>
     `;
 
@@ -410,6 +452,9 @@ function openBriefingModal(brief) {
   const sourcesLis = (brief.sources || [])
     .map(s => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.name}</a></li>`)
     .join("");
+  const updatedPill = shouldShowUpdated(brief.publishedAt, brief.updatedAt)
+    ? `<span class="pill">Updated: ${formatUpdated(brief.updatedAt)}</span>`
+    : "";
 
   content.innerHTML = `
     <div class="brf-article-layout briefing-modal-body">
@@ -468,8 +513,7 @@ function openBriefingModal(brief) {
 
         <div class="card-footer">
           <span class="pill">${brief.category.toUpperCase()}</span>
-          <span class="pill">${brief.region}</span>
-          <span class="pill">Updated: ${formatUpdated(brief.timestamp)}</span>
+          ${updatedPill}
         </div>
       </div>
     </div>
