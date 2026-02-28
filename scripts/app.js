@@ -15,9 +15,60 @@ const timelineExists =
    ============================================================ */
 
 const feedContainer = document.getElementById("feed");
+const lastUpdateValue = document.getElementById("lastUpdateValue");
+let latestIntelTimestampMs = null;
 
 if (feedContainer) {
     loadHomeFeed();
+}
+
+if (lastUpdateValue) {
+    initLastUpdateMetric();
+}
+
+function formatElapsed(ms) {
+    const totalSec = Math.max(0, Math.floor(ms / 1000));
+    const h = String(Math.floor(totalSec / 3600)).padStart(2, "0");
+    const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, "0");
+    const s = String(totalSec % 60).padStart(2, "0");
+    return `${h}:${m}:${s}`;
+}
+
+function refreshLastUpdateDisplay() {
+    if (!lastUpdateValue) return;
+    if (!latestIntelTimestampMs) {
+        lastUpdateValue.textContent = "--:--:--";
+        return;
+    }
+    const diff = Date.now() - latestIntelTimestampMs;
+    lastUpdateValue.textContent = formatElapsed(diff);
+}
+
+async function updateLatestTimestampFromTables() {
+    try {
+        const [liveRows, briefingRows] = await Promise.all([
+            fetchLiveIntel({ limit: 1, days: 3650 }),
+            fetchBriefingIntel({ limit: 1, days: 3650 })
+        ]);
+
+        const candidates = [liveRows?.[0]?.timestamp, briefingRows?.[0]?.timestamp]
+            .filter(Boolean)
+            .map(ts => new Date(ts).getTime())
+            .filter(Number.isFinite);
+
+        if (candidates.length) {
+            latestIntelTimestampMs = Math.max(...candidates);
+        }
+        refreshLastUpdateDisplay();
+    } catch (err) {
+        console.error("Failed to update LAST UPDATE metric:", err);
+    }
+}
+
+function initLastUpdateMetric() {
+    updateLatestTimestampFromTables();
+    setInterval(refreshLastUpdateDisplay, 1000);
+    setInterval(updateLatestTimestampFromTables, 60000);
 }
 
 async function loadHomeFeed() {
@@ -266,11 +317,15 @@ let intelMap = null;
 if (intelMapContainer && typeof mapboxgl !== "undefined") {
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
+    const isPhone = window.matchMedia("(max-width: 480px)").matches;
+    const initialCenter = isPhone ? [0, 8] : [0, 0];
+    const initialZoom = isPhone ? 0.72 : 1.0;
+
     intelMap = new mapboxgl.Map({
         container: "intel-map",
         style: "mapbox://styles/mapbox/dark-v11",
-        center: [0, 0],
-        zoom: 1.0,
+        center: initialCenter,
+        zoom: initialZoom,
         pitch: 0,
         bearing: 0,
         attributionControl: false,

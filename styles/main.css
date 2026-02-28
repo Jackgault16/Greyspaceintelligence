@@ -572,7 +572,12 @@ body {
     }
 
     .nav-links {
-        gap: 18px;
+        min-width: 0;
+        width: 100%;
+        gap: 14px;
+        justify-content: center;
+        flex-wrap: wrap;
+        padding: 0 10px;
     }
 
     .nav-links li {
@@ -585,10 +590,10 @@ body {
     }
 
     .timeline-labels {
-        gap: 18px;
-        overflow-x: auto;
-        justify-content: flex-start;
-        padding-bottom: 4px;
+        gap: 0;
+        overflow: hidden;
+        justify-content: space-between;
+        padding-bottom: 0;
     }
 
     .timeline-current-box {
@@ -622,5 +627,21 @@ body {
 
     .feed-item h3 {
         font-size: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .title-header h1 {
+        font-size: 18px;
+        letter-spacing: 1.5px;
+    }
+
+    .nav-links li {
+        font-size: 12px;
+        letter-spacing: 1px;
+    }
+
+    .timeline-labels span {
+        font-size: 10px;
     }
 }
