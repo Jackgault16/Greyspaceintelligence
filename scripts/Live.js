@@ -10,10 +10,18 @@ function getFilterValues() {
 }
 
 function buildSourcesHTML(item) {
-    const sourceText = item.sources || item.source || "";
+    const rawSources = item.sources ?? item.source ?? "";
+    const sourceText = Array.isArray(rawSources)
+        ? rawSources.join(", ")
+        : String(rawSources);
+
     if (!sourceText) return "";
 
-    const sources = sourceText.split(",").map(s => s.trim());
+    const sources = sourceText
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean);
+
     return sources
         .map(src => `<a href="${src}" target="_blank">${src}</a>`)
         .join("<br>");
@@ -36,45 +44,48 @@ async function renderIntel() {
     const filterValues = getFilterValues();
 
     intel.forEach(item => {
-        if (!matchesFilters(item, filterValues)) return;
+        try {
+            if (!matchesFilters(item, filterValues)) return;
 
-        const category = item.category?.toLowerCase() || "";
+            const category = item.category?.toLowerCase() || "";
+            const card = document.createElement("div");
+            card.className = "feed-item";
 
-        const card = document.createElement("div");
-        card.className = "feed-item";
+            const sourcesHTML = buildSourcesHTML(item);
 
-        const sourcesHTML = buildSourcesHTML(item);
+            card.innerHTML = `
+                <h3>
+                    ${item.title || "Untitled"}
+                    <span class="category-tag category-${category || "none"}">
+                        ${item.category || ""}
+                    </span>
+                </h3>
 
-        card.innerHTML = `
-            <h3>
-                ${item.title}
-                <span class="category-tag category-${category || "none"}">
-                    ${item.category || ""}
-                </span>
-            </h3>
+                <div class="timestamp">
+                    ${(item.region || "").toUpperCase()} • ${(item.category || "").toUpperCase()} •
+                    ${new Date(item.timestamp).toLocaleString()}
+                </div>
 
-            <div class="timestamp">
-                ${(item.region || "").toUpperCase()} • ${(item.category || "").toUpperCase()} • 
-                ${new Date(item.timestamp).toLocaleString()}
-            </div>
+                <div class="why">${item.summary || ""}</div>
 
-            <div class="why">${item.summary || ""}</div>
+                <div class="intel-expanded">
+                    <div class="details">${item.details || ""}</div>
+                    ${
+                        sourcesHTML
+                            ? `<div class="sources"><strong>Sources:</strong><br>${sourcesHTML}</div>`
+                            : ""
+                    }
+                </div>
+            `;
 
-            <div class="intel-expanded">
-                <div class="details">${item.details || ""}</div>
-                ${
-                    sourcesHTML
-                        ? `<div class="sources"><strong>Sources:</strong><br>${sourcesHTML}</div>`
-                        : ""
-                }
-            </div>
-        `;
+            card.addEventListener("click", () => {
+                card.querySelector(".intel-expanded").classList.toggle("visible");
+            });
 
-        card.addEventListener("click", () => {
-            card.querySelector(".intel-expanded").classList.toggle("visible");
-        });
-
-        feed.appendChild(card);
+            feed.appendChild(card);
+        } catch (err) {
+            console.error("Skipping invalid live row:", err, item);
+        }
     });
 
     updateMapMarkers(intel);
@@ -84,23 +95,29 @@ async function renderIntel() {
 let markers = [];
 
 function updateMapMarkers(intel) {
+    if (typeof map === "undefined" || !map) return;
+
     markers.forEach(m => m.remove());
     markers = [];
 
     intel.forEach(item => {
-        const lng = item.lng != null ? item.lng : item.long;
-        if (item.lat == null || lng == null) return;
+        try {
+            const lng = item.lng != null ? item.lng : item.long;
+            if (item.lat == null || lng == null) return;
 
-        const marker = new mapboxgl.Marker({ color: "#f97316" })
-            .setLngLat([lng, item.lat])
-            .setPopup(new mapboxgl.Popup().setHTML(`
-                <strong>${item.title}</strong><br>
-                ${item.region} • ${item.category}<br>
-                ${new Date(item.timestamp).toLocaleString()}
-            `))
-            .addTo(map);
+            const marker = new mapboxgl.Marker({ color: "#f97316" })
+                .setLngLat([lng, item.lat])
+                .setPopup(new mapboxgl.Popup().setHTML(`
+                    <strong>${item.title || "Untitled"}</strong><br>
+                    ${item.region || ""} • ${item.category || ""}<br>
+                    ${new Date(item.timestamp).toLocaleString()}
+                `))
+                .addTo(map);
 
-        markers.push(marker);
+            markers.push(marker);
+        } catch (err) {
+            console.error("Skipping invalid map row:", err, item);
+        }
     });
 }
 
