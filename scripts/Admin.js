@@ -22,6 +22,11 @@ const intelTimestamp = document.getElementById("intelTimestamp");
 const intelSources = document.getElementById("intelSources");
 const intelLat = document.getElementById("intelLat");
 const intelLng = document.getElementById("intelLng");
+const briefingFields = document.getElementById("briefingFields");
+const briefingRisk = document.getElementById("briefingRisk");
+const briefingPriority = document.getElementById("briefingPriority");
+const briefingZoom = document.getElementById("briefingZoom");
+const briefingPoints = document.getElementById("briefingPoints");
 
 const publishButton = document.getElementById("publishButton");
 const resetFormButton = document.getElementById("resetFormButton");
@@ -41,7 +46,11 @@ const intelFields = {
     timestamp: intelTimestamp,
     sources: intelSources,
     lat: intelLat,
-    lng: intelLng
+    lng: intelLng,
+    briefingRisk,
+    briefingPriority,
+    briefingZoom,
+    briefingPoints
 };
 
 let editingIntelId = null;
@@ -87,6 +96,58 @@ function setEditorStatus(message) {
 function setCoordinates(lng, lat) {
     intelLat.value = lat.toFixed(6);
     intelLng.value = lng.toFixed(6);
+}
+
+function getScopeMode() {
+    return intelFields.scope.value === "BRIEFING" ? "BRIEFING" : "LIVE";
+}
+
+function syncEditorModeUI() {
+    const isBriefing = getScopeMode() === "BRIEFING";
+    briefingFields.style.display = isBriefing ? "block" : "none";
+}
+
+function parsePointsFromText(text) {
+    return String(text || "")
+        .split(/\r?\n/)
+        .map(p => p.trim())
+        .filter(Boolean);
+}
+
+function parsePointsFromItem(item) {
+    if (Array.isArray(item.points)) return item.points;
+    if (Array.isArray(item.key_points)) return item.key_points;
+    if (typeof item.points === "string") {
+        return item.points.split(/\r?\n|;/).map(p => p.trim()).filter(Boolean);
+    }
+    return [];
+}
+
+function extractMissingColumnName(error) {
+    const message = String(error?.message || "");
+    const match = message.match(/column \"([a-zA-Z0-9_]+)\"/);
+    return match ? match[1] : null;
+}
+
+async function saveWithColumnFallback(table, payload, editingId) {
+    let workingPayload = { ...payload };
+
+    for (let i = 0; i < 8; i++) {
+        const result = editingId
+            ? await supabase.from(table).update(workingPayload).eq("id", editingId)
+            : await supabase.from(table).insert(workingPayload);
+
+        if (!result.error) return result;
+
+        const missingColumn = extractMissingColumnName(result.error);
+        if (!missingColumn || !(missingColumn in workingPayload)) {
+            return result;
+        }
+
+        delete workingPayload[missingColumn];
+    }
+
+    return { error: { message: "Save failed after fallback attempts." } };
 }
 
 function regionFromCountryCode(rawCode) {
@@ -233,15 +294,21 @@ function clearForm() {
     intelFields.sources.value = "";
     intelFields.lat.value = "";
     intelFields.lng.value = "";
+    intelFields.briefingRisk.value = "med";
+    intelFields.briefingPriority.value = "medium";
+    intelFields.briefingZoom.value = "5";
+    intelFields.briefingPoints.value = "";
 
     setAutoTimestamp();
     deleteButton.style.display = "none";
     setEditorStatus("");
+    syncEditorModeUI();
 }
 
 resetFormButton.addEventListener("click", clearForm);
 intelScope.addEventListener("change", () => {
     clearForm();
+    syncEditorModeUI();
 });
 
 // ===============================
@@ -288,21 +355,32 @@ function loadIntelIntoEditor(item, table) {
     editingTable = table;
 
     intelFields.title.value = item.title;
-    intelFields.summary.value = item.summary;
-    intelFields.details.value = item.details;
-    intelFields.region.value = item.region;
-    intelFields.category.value = item.category;
-    intelFields.timestamp.value = item.timestamp.slice(0, 16);
+    intelFields.summary.value = item.summary || item.executive_summary || "";
+    intelFields.details.value = item.details || item.analysis || "";
+    intelFields.region.value = item.region || item.theater || "";
+    intelFields.category.value = item.category || item.type || "";
+    const ts = item.timestamp ? String(item.timestamp).slice(0, 16) : "";
+    intelFields.timestamp.value = ts;
     intelFields.sources.value = item.sources || "";
-    intelFields.lat.value = item.lat;
-    intelFields.lng.value = item.lng;
+    const coords = Array.isArray(item.coords) ? item.coords : null;
+    const lat = item.lat != null ? item.lat : (coords ? coords[1] : "");
+    const lng = item.lng != null ? item.lng : (item.long != null ? item.long : (coords ? coords[0] : ""));
+    intelFields.lat.value = lat;
+    intelFields.lng.value = lng;
     intelFields.scope.value = table === BRIEFING_INTEL_TABLE ? "BRIEFING" : "LIVE";
+    intelFields.briefingRisk.value = item.risk || "med";
+    intelFields.briefingPriority.value = item.priority || "medium";
+    intelFields.briefingZoom.value = item.zoom || item.map_zoom || 5;
+    intelFields.briefingPoints.value = parsePointsFromItem(item).join("\n");
 
-    placeAdminMarker(item.lng, item.lat);
+    if (lng !== "" && lat !== "") {
+        placeAdminMarker(Number(lng), Number(lat));
+    }
     deleteButton.style.display = "inline-block";
+    syncEditorModeUI();
 }
 
-function buildPayload() {
+function buildLivePayload() {
     return {
         title: intelFields.title.value.trim(),
         summary: intelFields.summary.value.trim(),
@@ -316,21 +394,50 @@ function buildPayload() {
     };
 }
 
+function buildBriefingPayload() {
+    const lat = parseFloat(intelFields.lat.value);
+    const lng = parseFloat(intelFields.lng.value);
+    const points = parsePointsFromText(intelFields.briefingPoints.value);
+    const detailsText = intelFields.details.value.trim();
+
+    return {
+        title: intelFields.title.value.trim(),
+        summary: intelFields.summary.value.trim(),
+        details: detailsText,
+        analysis: detailsText,
+        region: intelFields.region.value.trim(),
+        category: intelFields.category.value,
+        timestamp: new Date(intelFields.timestamp.value).toISOString(),
+        risk: intelFields.briefingRisk.value || "med",
+        priority: intelFields.briefingPriority.value || "medium",
+        points,
+        sources: intelFields.sources.value.trim(),
+        lat,
+        lng,
+        coords: Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : null,
+        zoom: parseFloat(intelFields.briefingZoom.value) || 5
+    };
+}
+
 // ===============================
 // PUBLISH / UPDATE
 // ===============================
 publishButton.addEventListener("click", async () => {
-    const payload = buildPayload();
     const table = editingTable || getSelectedTable();
+    const isBriefing = table === BRIEFING_INTEL_TABLE;
+    const payload = isBriefing ? buildBriefingPayload() : buildLivePayload();
 
-    if (!payload.title || !payload.summary || !payload.details) {
+    if (!payload.title || !payload.summary) {
         setEditorStatus("Missing required fields.");
         return;
     }
 
-    const result = editingIntelId
-        ? await supabase.from(table).update(payload).eq("id", editingIntelId)
-        : await supabase.from(table).insert(payload);
+    if (!isBriefing && !payload.details) {
+        setEditorStatus("Missing required fields.");
+        return;
+    }
+
+    const result = await saveWithColumnFallback(table, payload, editingIntelId);
 
     if (result.error) {
         setEditorStatus("Error saving intel.");
@@ -402,6 +509,7 @@ function showAdminView(user) {
     adminView.style.display = "block";
     adminEmailDisplay.textContent = user.email;
     setAutoTimestamp();
+    syncEditorModeUI();
     loadIntelList();
 }
 

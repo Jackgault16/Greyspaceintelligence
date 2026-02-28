@@ -105,24 +105,54 @@ function derivePoints(details) {
   return sentencePoints.slice(0, 4);
 }
 
+function normalizeRisk(rawRisk) {
+  const value = String(rawRisk || "").toLowerCase();
+  if (value === "high" || value === "med" || value === "low") return value;
+  if (value === "medium") return "med";
+  return "med";
+}
+
+function normalizePriority(rawPriority) {
+  const value = String(rawPriority || "").toLowerCase();
+  if (value === "high" || value === "medium" || value === "low") return value;
+  if (value === "med") return "medium";
+  return "medium";
+}
+
+function parsePointsField(item, detailsText) {
+  if (Array.isArray(item.points)) return item.points;
+  if (Array.isArray(item.key_points)) return item.key_points;
+  if (typeof item.points === "string") {
+    return item.points.split(/\r?\n|;/).map(p => p.trim()).filter(Boolean);
+  }
+  return derivePoints(detailsText);
+}
+
 function toBriefingItem(item) {
-  const normalizedCategory = normalizeCategory(item.category);
-  const points = derivePoints(item.details);
+  const normalizedCategory = normalizeCategory(item.category || item.type);
+  const detailsText = item.details || item.analysis || "";
+  const points = parsePointsField(item, detailsText);
+  const coords = Array.isArray(item.coords) && item.coords.length === 2
+    ? [Number(item.coords[0]), Number(item.coords[1])]
+    : null;
+  const lng = item.lng != null ? Number(item.lng) : (item.long != null ? Number(item.long) : (coords ? coords[0] : null));
+  const lat = item.lat != null ? Number(item.lat) : (coords ? coords[1] : null);
 
   return {
     id: item.id,
     title: item.title || "Untitled",
     category: normalizedCategory || "greyspace",
-    region: item.region || "Global / Multi-Region",
-    timestamp: item.timestamp,
-    risk: "med",
-    priority: "medium",
+    region: item.region || item.theater || "Global / Multi-Region",
+    timestamp: item.timestamp || new Date().toISOString(),
+    risk: normalizeRisk(item.risk),
+    priority: normalizePriority(item.priority),
     coords:
-      item.lat != null && item.lng != null
-        ? [Number(item.lng), Number(item.lat)]
+      lat != null && lng != null
+        ? [lng, lat]
         : [0, 20],
-    zoom: 5,
-    summary: item.summary || "",
+    zoom: Number(item.zoom || item.map_zoom || 5),
+    summary: item.summary || item.executive_summary || "",
+    analysis: detailsText,
     points: points.length ? points : ["No key points available."]
   };
 }
@@ -259,11 +289,7 @@ function openBriefingModal(brief) {
         </ul>
 
         <h3>Analysis</h3>
-        <p class="brf-article-analysis">
-          This section provides deeper context, risk evaluation, and potential implications.
-          It can include escalation likelihood, regional impact, actor motivations, 
-          and intelligence confidence levels.
-        </p>
+        <p class="brf-article-analysis">${brief.analysis || "No additional analysis provided."}</p>
       </div>
     </div>
   `;
