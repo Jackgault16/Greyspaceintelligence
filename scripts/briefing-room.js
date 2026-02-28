@@ -6,7 +6,7 @@ const sampleBriefings = [
     id: 1,
     title: "Russian Force Posture Shift",
     category: "military",
-    region: "europe",
+    region: "Europe",
     timestamp: "2026-02-27T13:46:33Z",
     risk: "high",
     priority: "high",
@@ -23,7 +23,7 @@ const sampleBriefings = [
     id: 2,
     title: "Sudan Ceasefire Collapse",
     category: "political",
-    region: "africa",
+    region: "Africa",
     timestamp: "2026-02-27T12:20:00Z",
     risk: "med",
     priority: "medium",
@@ -40,7 +40,7 @@ const sampleBriefings = [
     id: 3,
     title: "Oil Market Volatility",
     category: "economic",
-    region: "mena",
+    region: "Middle East",
     timestamp: "2026-02-27T10:05:00Z",
     risk: "low",
     priority: "low",
@@ -59,7 +59,7 @@ const sampleBriefings = [
 // STATE
 // ===============================
 let activeCategory = "all";
-let activeRegion = "all";
+let activeRegion = "";
 let activeSearch = "";
 let activeSort = "latest";
 
@@ -125,8 +125,9 @@ function applyFilters() {
   }
 
   // Region filter
-  if (activeRegion !== "all") {
-    filtered = filtered.filter(b => b.region === activeRegion);
+  if (activeRegion.trim() !== "") {
+    const selectedRegion = activeRegion.toLowerCase();
+    filtered = filtered.filter(b => (b.region || "").toLowerCase() === selectedRegion);
   }
 
   // Search filter

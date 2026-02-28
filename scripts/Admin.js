@@ -64,6 +64,64 @@ function setCoordinates(lng, lat) {
     intelLng.value = lng.toFixed(6);
 }
 
+function regionFromCountryCode(rawCode) {
+    if (!rawCode) return "";
+
+    const code = rawCode.toUpperCase();
+
+    const northAmerica = new Set(["US", "CA", "MX", "GL", "BM"]);
+    const southAmerica = new Set(["AR", "BO", "BR", "CL", "CO", "EC", "GY", "PE", "PY", "SR", "UY", "VE", "GF", "FK"]);
+    const europe = new Set([
+        "AL", "AD", "AT", "BY", "BE", "BA", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IS",
+        "IE", "IT", "XK", "LV", "LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL", "MK", "NO", "PL", "PT", "RO", "RU",
+        "SM", "RS", "SK", "SI", "ES", "SE", "CH", "UA", "GB", "VA"
+    ]);
+    const middleEast = new Set(["AE", "BH", "EG", "IQ", "IR", "IL", "JO", "KW", "LB", "OM", "PS", "QA", "SA", "SY", "TR", "YE"]);
+    const africa = new Set([
+        "DZ", "AO", "BJ", "BW", "BF", "BI", "CM", "CV", "CF", "TD", "KM", "CD", "CG", "CI", "DJ", "GQ", "ER", "SZ",
+        "ET", "GA", "GM", "GH", "GN", "GW", "KE", "LS", "LR", "LY", "MG", "MW", "ML", "MR", "MU", "MA", "MZ", "NA",
+        "NE", "NG", "RW", "ST", "SN", "SC", "SL", "SO", "ZA", "SS", "SD", "TZ", "TG", "TN", "UG", "ZM", "ZW"
+    ]);
+    const centralAsia = new Set(["KZ", "KG", "TJ", "TM", "UZ", "AF"]);
+    const eastAsia = new Set(["CN", "HK", "JP", "KP", "KR", "MN", "MO", "TW"]);
+    const southAsia = new Set(["BD", "BT", "IN", "LK", "MV", "NP", "PK"]);
+    const southeastAsia = new Set(["BN", "KH", "ID", "LA", "MY", "MM", "PH", "SG", "TH", "TL", "VN"]);
+    const oceania = new Set(["AU", "FJ", "KI", "MH", "FM", "NR", "NZ", "PW", "PG", "WS", "SB", "TO", "TV", "VU"]);
+
+    if (northAmerica.has(code)) return "North America";
+    if (southAmerica.has(code)) return "South America";
+    if (europe.has(code)) return "Europe";
+    if (middleEast.has(code)) return "Middle East";
+    if (africa.has(code)) return "Africa";
+    if (centralAsia.has(code)) return "Central Asia";
+    if (eastAsia.has(code)) return "East Asia";
+    if (southAsia.has(code)) return "South Asia";
+    if (southeastAsia.has(code)) return "Southeast Asia";
+    if (oceania.has(code)) return "Oceania";
+    return "";
+}
+
+function extractCountryCodeFromFeature(feature) {
+    const context = feature?.context || [];
+    const country = context.find(entry => (entry.id || "").startsWith("country."));
+
+    if (country?.short_code) {
+        return country.short_code.toUpperCase();
+    }
+
+    if (feature?.place_type?.includes("country") && feature.properties?.short_code) {
+        return String(feature.properties.short_code).toUpperCase();
+    }
+
+    return "";
+}
+
+function maybeApplyRegionFromFeature(feature) {
+    const code = extractCountryCodeFromFeature(feature);
+    const region = regionFromCountryCode(code);
+    if (region) intelRegion.value = region;
+}
+
 // ===============================
 // MAPBOX SETUP
 // ===============================
@@ -88,10 +146,21 @@ function placeAdminMarker(lng, lat) {
 // ===============================
 // MAP CLICK HANDLER
 // ===============================
-adminMap.on("click", (e) => {
+adminMap.on("click", async (e) => {
     const { lng, lat } = e.lngLat;
     setCoordinates(lng, lat);
     placeAdminMarker(lng, lat);
+
+    try {
+        const reverseUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=country,region,place&limit=1&access_token=${MAPBOX_TOKEN}`;
+        const res = await fetch(reverseUrl);
+        const json = await res.json();
+        if (json.features && json.features[0]) {
+            maybeApplyRegionFromFeature(json.features[0]);
+        }
+    } catch (err) {
+        console.error("Reverse geocode failed:", err);
+    }
 });
 
 // ===============================
@@ -116,6 +185,7 @@ citySearch.addEventListener("keydown", async (e) => {
         const place = json.features[0];
         const [lng, lat] = place.center;
         setCoordinates(lng, lat);
+        maybeApplyRegionFromFeature(place);
         placeAdminMarker(lng, lat);
         adminMap.flyTo({ center: [lng, lat], zoom: 5 });
     } catch (err) {
