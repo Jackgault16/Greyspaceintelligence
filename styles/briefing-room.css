@@ -166,12 +166,92 @@ body.gs-body {
   background: rgba(0, 0, 0, 0.25);
 }
 
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge--muted {
+  font-weight: 600;
+  opacity: 0.9;
+}
+
 .impact-badge {
   justify-self: end;
   font-weight: 700;
   letter-spacing: 0.6px;
 }
 
+.badge-impact-strategic {
+  background: rgba(255, 59, 48, 0.16);
+  border-color: rgba(255, 59, 48, 0.33);
+}
+
+.badge-impact-operational {
+  background: rgba(255, 149, 0, 0.16);
+  border-color: rgba(255, 149, 0, 0.33);
+}
+
+.badge-impact-tactical {
+  background: rgba(255, 214, 10, 0.14);
+  border-color: rgba(255, 214, 10, 0.3);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.badge-impact-noise {
+  background: rgba(142, 142, 147, 0.16);
+  border-color: rgba(142, 142, 147, 0.33);
+}
+
+.badge-risk-low {
+  background: rgba(52, 199, 89, 0.14);
+  border-color: rgba(52, 199, 89, 0.3);
+}
+
+.badge-risk-medium {
+  background: rgba(255, 204, 0, 0.12);
+  border-color: rgba(255, 204, 0, 0.26);
+}
+
+.badge-risk-high {
+  background: rgba(255, 69, 58, 0.14);
+  border-color: rgba(255, 69, 58, 0.28);
+}
+
+.badge-priority-low {
+  background: rgba(90, 200, 250, 0.1);
+  border-color: rgba(90, 200, 250, 0.22);
+}
+
+.badge-priority-medium {
+  background: rgba(175, 82, 222, 0.1);
+  border-color: rgba(175, 82, 222, 0.22);
+}
+
+.badge-priority-high {
+  background: rgba(10, 132, 255, 0.12);
+  border-color: rgba(10, 132, 255, 0.25);
+}
+
+.intel-row,
+.intel-triad {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Backward compatibility with older class names */
 .impact-strategic {
   background: rgba(255, 59, 48, 0.18);
   border-color: rgba(255, 59, 48, 0.35);
@@ -190,6 +270,10 @@ body.gs-body {
 .impact-noise {
   background: rgba(142, 142, 147, 0.18);
   border-color: rgba(142, 142, 147, 0.35);
+}
+
+.card-header--modal {
+  grid-template-columns: 1fr;
 }
 
 .section {
@@ -252,7 +336,7 @@ body.gs-body {
   background: #050608;
   border: 1px solid #262a33;
   border-radius: 12px;
-  width: min(92vw, 1200px);
+  width: clamp(900px, 88vw, 1200px);
   max-width: 1200px;
   max-height: 85vh;
   overflow: hidden;
@@ -461,6 +545,10 @@ body.gs-body {
 }
 
 @media (max-width: 900px) {
+  .brf-modal__dialog {
+    width: 96%;
+  }
+
   .brf-article-layout,
   .briefing-modal-body {
     grid-template-columns: 1fr;

@@ -66,22 +66,25 @@ let activeSearch = "";
 let activeSort = "latest";
 let briefingModalMap = null;
 
-const riskOrder = { high: 3, med: 2, low: 1 };
-const impactIconMap = {
-  Strategic: "🔴",
-  Operational: "🟠",
-  Tactical: "🟡",
-  Noise: "⚪"
+const riskOrder = { high: 3, medium: 2, med: 2, low: 1 };
+const priorityOrder = { high: 3, medium: 2, low: 1 };
+const triadIcons = {
+  impact: "🧭",
+  risk: "⚠️",
+  priority: "⭐"
 };
-
 function sortBriefings(data, sortType) {
   if (sortType === "latest") {
-    data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    data.sort((a, b) => {
+      const priorityDiff = (priorityOrder[b.priorityLevel] || 0) - (priorityOrder[a.priorityLevel] || 0);
+      if (priorityDiff !== 0) return priorityDiff;
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    });
     return;
   }
 
   if (sortType === "risk") {
-    data.sort((a, b) => riskOrder[b.risk] - riskOrder[a.risk]);
+    data.sort((a, b) => riskOrder[b.riskLevel] - riskOrder[a.riskLevel]);
     return;
   }
 
@@ -94,12 +97,12 @@ function normalizeCategory(raw) {
   return (raw || "").toLowerCase().replace(/\s+/g, "");
 }
 
-function normalizeImpact(raw) {
+function normalizeImpactLevel(raw) {
   const v = String(raw || "").toLowerCase();
-  if (v === "strategic") return "Strategic";
-  if (v === "operational") return "Operational";
-  if (v === "tactical") return "Tactical";
-  return "Noise";
+  if (v === "strategic") return "strategic";
+  if (v === "operational") return "operational";
+  if (v === "tactical") return "tactical";
+  return "noise";
 }
 
 function normalizeStatus(raw) {
@@ -134,14 +137,14 @@ function derivePoints(details) {
   return sentencePoints.slice(0, 4);
 }
 
-function normalizeRisk(rawRisk) {
+function normalizeRiskLevel(rawRisk) {
   const value = String(rawRisk || "").toLowerCase();
-  if (value === "high" || value === "med" || value === "low") return value;
-  if (value === "medium") return "med";
-  return "med";
+  if (value === "high" || value === "medium" || value === "low") return value;
+  if (value === "med") return "medium";
+  return "low";
 }
 
-function normalizePriority(rawPriority) {
+function normalizePriorityLevel(rawPriority) {
   const value = String(rawPriority || "").toLowerCase();
   if (value === "high" || value === "medium" || value === "low") return value;
   if (value === "med") return "medium";
@@ -242,7 +245,31 @@ function shouldShowUpdated(publishedAt, updatedAt) {
 }
 
 function impactClassName(impact) {
-  return `impact-${impact.toLowerCase()}`;
+  return `badge-impact-${impact}`;
+}
+
+function impactDisplayLabel(impact) {
+  return String(impact || "noise").toUpperCase();
+}
+
+function riskDisplayLabel(risk) {
+  return String(risk || "low").toUpperCase();
+}
+
+function priorityDisplayLabel(priority) {
+  return String(priority || "medium").toUpperCase();
+}
+
+function renderIndicatorsList(indicators) {
+  if (Array.isArray(indicators)) {
+    const cleaned = indicators.map(v => String(v).trim()).filter(Boolean);
+    if (!cleaned.length) return "<li>No indicators listed.</li>";
+    return cleaned.slice(0, 4).map(p => `<li>${p}</li>`).join("");
+  }
+  if (typeof indicators === "string" && indicators.trim()) {
+    return `<li>${indicators.trim()}</li>`;
+  }
+  return "<li>No indicators listed.</li>";
 }
 
 function toBriefingItem(item) {
@@ -263,16 +290,16 @@ function toBriefingItem(item) {
     timestamp: item.timestamp || item.published_at || item.created_at || new Date().toISOString(),
     publishedAt: item.published_at || item.timestamp || item.created_at || null,
     updatedAt: item.updated_at || item.updatedAt || null,
-    risk: normalizeRisk(item.risk),
-    priority: normalizePriority(item.priority),
+    riskLevel: normalizeRiskLevel(item.risk_level || item.risk),
+    priorityLevel: normalizePriorityLevel(item.priority_level || item.priority),
     status: normalizeStatus(item.status),
-    impactLevel: normalizeImpact(item.impact_level || item.impact || item.impact_level_primary),
+    impactLevel: normalizeImpactLevel(item.impact_level || item.impact || item.impact_level_primary),
     confidence: normalizeConfidence(item.confidence),
     coords:
       lat != null && lng != null
         ? [lng, lat]
         : [0, 20],
-    zoom: Number(item.zoom || item.map_zoom || 5),
+    zoom: Number(item.map_zoom || item.zoom || 5),
     summary: item.summary || item.executive_summary || "",
     whyItMatters: item.why_it_matters || item.whyItMatters || item.why || item.summary || item.executive_summary || "",
     analysis: item.assessment || item.analysis || detailsText,
@@ -307,10 +334,7 @@ function renderBriefings(data) {
     const card = document.createElement("div");
     card.className = "briefing-card";
 
-    const indicatorsLis = (brief.indicators || [])
-      .slice(0, 4)
-      .map(p => `<li>${p}</li>`)
-      .join("");
+    const indicatorsLis = renderIndicatorsList(brief.indicators);
 
     const sourcesLis = (brief.sources || [])
       .map(s => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.name}</a></li>`)
@@ -326,11 +350,15 @@ function renderBriefings(data) {
           <div class="meta-row">
             <span class="pill">${brief.region}</span>
             <span class="pill">${brief.status}</span>
-            <span class="pill">${formatTimestamp(brief.timestamp)}</span>
+            <span class="pill">${formatTimestamp(brief.publishedAt || brief.timestamp)}</span>
+          </div>
+          <div class="intel-row">
+            <span class="badge badge--muted badge-risk-${brief.riskLevel}">${triadIcons.risk} RISK: ${riskDisplayLabel(brief.riskLevel)}</span>
+            <span class="badge badge--muted badge-priority-${brief.priorityLevel}">${triadIcons.priority} PRIORITY: ${priorityDisplayLabel(brief.priorityLevel)}</span>
           </div>
         </div>
-        <div class="pill impact-badge ${impactClassName(brief.impactLevel)}">
-          ${impactIconMap[brief.impactLevel]} ${brief.impactLevel.toUpperCase()}
+        <div class="badge impact-badge ${impactClassName(brief.impactLevel)}">
+          ${triadIcons.impact} ${impactDisplayLabel(brief.impactLevel)}
         </div>
       </div>
 
@@ -445,10 +473,7 @@ function openBriefingModal(brief) {
   const modal = document.getElementById("brf-modal");
   const content = document.getElementById("brf-modal-content");
 
-  const indicatorsLis = (brief.indicators || [])
-    .slice(0, 4)
-    .map(p => `<li>${p}</li>`)
-    .join("");
+  const indicatorsLis = renderIndicatorsList(brief.indicators);
   const sourcesLis = (brief.sources || [])
     .map(s => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.name}</a></li>`)
     .join("");
@@ -463,17 +488,19 @@ function openBriefingModal(brief) {
       </div>
 
       <div class="brf-article-right briefing-content-panel">
-        <div class="card-header">
+        <div class="card-header card-header--modal">
           <div>
             <div class="headline">${brief.title}</div>
             <div class="meta-row">
               <span class="pill">${brief.region}</span>
               <span class="pill">${brief.status}</span>
-              <span class="pill">${formatTimestamp(brief.timestamp)}</span>
+              <span class="pill">${formatTimestamp(brief.publishedAt || brief.timestamp)}</span>
             </div>
-          </div>
-          <div class="pill impact-badge ${impactClassName(brief.impactLevel)}">
-            ${impactIconMap[brief.impactLevel]} ${brief.impactLevel.toUpperCase()}
+            <div class="intel-triad">
+              <span class="badge ${impactClassName(brief.impactLevel)}">${triadIcons.impact} IMPACT: ${impactDisplayLabel(brief.impactLevel)}</span>
+              <span class="badge badge-risk-${brief.riskLevel}">${triadIcons.risk} RISK: ${riskDisplayLabel(brief.riskLevel)}</span>
+              <span class="badge badge-priority-${brief.priorityLevel}">${triadIcons.priority} PRIORITY: ${priorityDisplayLabel(brief.priorityLevel)}</span>
+            </div>
           </div>
         </div>
 
@@ -588,3 +615,4 @@ document.addEventListener("DOMContentLoaded", () => {
   setupFilters();
   setupModalClose();
 });
+

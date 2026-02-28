@@ -70,6 +70,26 @@ const intelFields = {
 let editingIntelId = null;
 let editingTable = null;
 
+function normalizeRiskLevel(value) {
+    const v = String(value || "").toLowerCase();
+    if (v === "high" || v === "medium" || v === "low") return v;
+    if (v === "med") return "medium";
+    return "low";
+}
+
+function normalizePriorityLevel(value) {
+    const v = String(value || "").toLowerCase();
+    if (v === "high" || v === "medium" || v === "low") return v;
+    if (v === "med") return "medium";
+    return "medium";
+}
+
+function normalizeImpactLevel(value) {
+    const v = String(value || "").toLowerCase();
+    if (v === "strategic" || v === "operational" || v === "tactical" || v === "noise") return v;
+    return "noise";
+}
+
 function getSelectedTable() {
     return intelFields.scope.value === "BRIEFING" ? BRIEFING_INTEL_TABLE : LIVE_INTEL_TABLE;
 }
@@ -359,12 +379,12 @@ function clearForm() {
     intelFields.sources.value = "";
     intelFields.lat.value = "";
     intelFields.lng.value = "";
-    intelFields.briefingRisk.value = "med";
+    intelFields.briefingRisk.value = "medium";
     intelFields.briefingPriority.value = "medium";
     intelFields.briefingZoom.value = "5";
     intelFields.briefingPoints.value = "";
     intelFields.briefingStatus.value = "Ongoing";
-    intelFields.briefingImpactLevel.value = "Noise";
+    intelFields.briefingImpactLevel.value = "noise";
     intelFields.briefingConfidence.value = "Medium";
     intelFields.briefingIndicators.value = "";
     intelFields.briefingWhyMatters.value = "";
@@ -429,7 +449,7 @@ function loadIntelIntoEditor(item, table) {
     intelFields.details.value = item.details || item.analysis || "";
     intelFields.region.value = item.region || item.theater || "";
     intelFields.category.value = item.category || item.type || "";
-    const ts = item.timestamp ? String(item.timestamp).slice(0, 16) : "";
+    const ts = (item.published_at || item.timestamp) ? String(item.published_at || item.timestamp).slice(0, 16) : "";
     intelFields.timestamp.value = ts;
     intelFields.sources.value = item.sources || "";
     const coords = Array.isArray(item.coords) ? item.coords : null;
@@ -438,12 +458,12 @@ function loadIntelIntoEditor(item, table) {
     intelFields.lat.value = lat;
     intelFields.lng.value = lng;
     intelFields.scope.value = table === BRIEFING_INTEL_TABLE ? "BRIEFING" : "LIVE";
-    intelFields.briefingRisk.value = item.risk || "med";
-    intelFields.briefingPriority.value = item.priority || "medium";
-    intelFields.briefingZoom.value = item.zoom || item.map_zoom || 5;
+    intelFields.briefingRisk.value = normalizeRiskLevel(item.risk_level || item.risk || "medium");
+    intelFields.briefingPriority.value = normalizePriorityLevel(item.priority_level || item.priority || "medium");
+    intelFields.briefingZoom.value = item.map_zoom || item.zoom || 5;
     intelFields.briefingPoints.value = parsePointsFromItem(item).join("\n");
     intelFields.briefingStatus.value = item.status || "Ongoing";
-    intelFields.briefingImpactLevel.value = item.impact_level || item.impact || "Noise";
+    intelFields.briefingImpactLevel.value = normalizeImpactLevel(item.impact_level || item.impact || "noise");
     intelFields.briefingConfidence.value = item.confidence || "Medium";
     const indicatorsRaw = item.indicators || item.indicators_to_watch || item.watch_indicators || "";
     intelFields.briefingIndicators.value = Array.isArray(indicatorsRaw)
@@ -473,7 +493,7 @@ function buildLivePayload() {
     };
 }
 
-function buildBriefingPayload() {
+function buildBriefingPayload(isUpdate) {
     const lat = parseFloat(intelFields.lat.value);
     const lng = parseFloat(intelFields.lng.value);
     const points = parsePointsFromText(intelFields.briefingPoints.value);
@@ -481,6 +501,11 @@ function buildBriefingPayload() {
     const detailsText = intelFields.details.value.trim();
     const whyItMatters = intelFields.briefingWhyMatters.value.trim();
     const assessment = intelFields.briefingAssessment.value.trim();
+    const publishedAt = new Date(intelFields.timestamp.value).toISOString();
+    const updatedAt = isUpdate ? new Date().toISOString() : publishedAt;
+    const impactLevel = normalizeImpactLevel(intelFields.briefingImpactLevel.value);
+    const riskLevel = normalizeRiskLevel(intelFields.briefingRisk.value);
+    const priorityLevel = normalizePriorityLevel(intelFields.briefingPriority.value);
 
     return {
         title: intelFields.title.value.trim(),
@@ -491,12 +516,16 @@ function buildBriefingPayload() {
         analysis: assessment || detailsText,
         region: intelFields.region.value.trim(),
         category: intelFields.category.value,
-        timestamp: new Date(intelFields.timestamp.value).toISOString(),
+        timestamp: publishedAt,
+        published_at: publishedAt,
+        updated_at: updatedAt,
         status: intelFields.briefingStatus.value || "Ongoing",
-        impact_level: intelFields.briefingImpactLevel.value || "Noise",
+        impact_level: impactLevel,
         confidence: intelFields.briefingConfidence.value || "Medium",
-        risk: intelFields.briefingRisk.value || "med",
-        priority: intelFields.briefingPriority.value || "medium",
+        risk_level: riskLevel,
+        priority_level: priorityLevel,
+        risk: riskLevel,
+        priority: priorityLevel,
         points,
         indicators,
         sources: intelFields.sources.value.trim(),
@@ -504,7 +533,8 @@ function buildBriefingPayload() {
         lat,
         lng,
         coords: Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : null,
-        zoom: parseFloat(intelFields.briefingZoom.value) || 5
+        map_zoom: Math.round(parseFloat(intelFields.briefingZoom.value) || 5),
+        zoom: Math.round(parseFloat(intelFields.briefingZoom.value) || 5)
     };
 }
 
@@ -514,7 +544,7 @@ function buildBriefingPayload() {
 publishButton.addEventListener("click", async () => {
     const table = editingTable || getSelectedTable();
     const isBriefing = table === BRIEFING_INTEL_TABLE;
-    const payload = isBriefing ? buildBriefingPayload() : buildLivePayload();
+    const payload = isBriefing ? buildBriefingPayload(Boolean(editingIntelId)) : buildLivePayload();
 
     if (!payload.title || !payload.summary) {
         setEditorStatus("Missing required fields.");

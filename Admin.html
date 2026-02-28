@@ -97,6 +97,27 @@
             gap: 10px;
         }
 
+        .admin-subsection {
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px solid #1b1b26;
+            border-radius: 8px;
+            background: #080913;
+        }
+
+        .admin-subsection h3 {
+            margin: 0 0 8px;
+            font-size: 0.78rem;
+            letter-spacing: 0.1em;
+            opacity: 0.85;
+        }
+
+        .field-help {
+            margin-top: 3px;
+            font-size: 0.72rem;
+            opacity: 0.65;
+        }
+
         .btn-primary,
         .btn-secondary,
         .btn-danger {
@@ -383,15 +404,6 @@
                                 <option value="Ongoing" selected>Ongoing</option>
                             </select>
                         </div>
-                        <div>
-                            <label for="briefingImpactLevel">Impact Level</label>
-                            <select id="briefingImpactLevel">
-                                <option value="Strategic">Strategic</option>
-                                <option value="Operational">Operational</option>
-                                <option value="Tactical">Tactical</option>
-                                <option value="Noise" selected>Noise</option>
-                            </select>
-                        </div>
                     </div>
 
                     <div class="admin-row">
@@ -405,29 +417,44 @@
                         </div>
                     </div>
 
-                    <div class="admin-row">
-                        <div>
-                            <label for="briefingRisk">Risk</label>
-                            <select id="briefingRisk">
-                                <option value="high">High</option>
-                                <option value="med" selected>Medium</option>
-                                <option value="low">Low</option>
-                            </select>
+                    <div class="admin-subsection">
+                        <h3>INTEL CONTROLS</h3>
+                        <div class="admin-row">
+                            <div>
+                                <label for="briefingImpactLevel">Impact Level</label>
+                                <select id="briefingImpactLevel">
+                                    <option value="strategic">Strategic</option>
+                                    <option value="operational">Operational</option>
+                                    <option value="tactical">Tactical</option>
+                                    <option value="noise" selected>Noise</option>
+                                </select>
+                                <div class="field-help">How much this matters (Strategic/Operational/Tactical/Noise)</div>
+                            </div>
+                            <div>
+                                <label for="briefingRisk">Risk Level</label>
+                                <select id="briefingRisk">
+                                    <option value="high">High</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="low">Low</option>
+                                </select>
+                                <div class="field-help">Likelihood of escalation (Low/Medium/High)</div>
+                            </div>
                         </div>
-                        <div>
-                            <label for="briefingPriority">Priority</label>
-                            <select id="briefingPriority">
-                                <option value="high">High</option>
-                                <option value="medium" selected>Medium</option>
-                                <option value="low">Low</option>
-                            </select>
-                        </div>
-                    </div>
 
-                    <div class="admin-row">
-                        <div>
-                            <label for="briefingZoom">Map zoom</label>
-                            <input id="briefingZoom" type="number" step="0.1" min="1" max="18" value="5">
+                        <div class="admin-row">
+                            <div>
+                                <label for="briefingPriority">Priority Level</label>
+                                <select id="briefingPriority">
+                                    <option value="high">High</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="low">Low</option>
+                                </select>
+                                <div class="field-help">Editorial urgency (used for sorting/feature)</div>
+                            </div>
+                            <div>
+                                <label for="briefingZoom">Map zoom</label>
+                                <input id="briefingZoom" type="number" step="1" min="1" max="18" value="5">
+                            </div>
                         </div>
                     </div>
 
