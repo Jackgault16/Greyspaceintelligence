@@ -55,6 +55,20 @@ function tableLabel(table) {
     return table === BRIEFING_INTEL_TABLE ? "BRIEFING" : "LIVE";
 }
 
+async function fetchTableRows(table) {
+    const { data, error } = await supabase
+        .from(table)
+        .select("*")
+        .order("timestamp", { ascending: false });
+
+    if (error) {
+        console.error(`Failed to load intel from ${table}:`, error);
+        return [];
+    }
+
+    return data.map(item => ({ ...item, __table: table }));
+}
+
 // ===============================
 // AUTO TIMESTAMP
 // ===============================
@@ -228,13 +242,13 @@ function clearForm() {
 resetFormButton.addEventListener("click", clearForm);
 intelScope.addEventListener("change", () => {
     clearForm();
-    loadIntelList();
 });
 
 // ===============================
 // LOAD EXISTING INTEL
 // ===============================
-function createIntelListItem(item, table) {
+function createIntelListItem(item) {
+    const table = item.__table || getSelectedTable();
     const div = document.createElement("div");
     div.className = "intel-item";
 
@@ -253,19 +267,17 @@ function createIntelListItem(item, table) {
 }
 
 async function loadIntelList() {
-    const table = getSelectedTable();
-    const { data, error } = await supabase
-        .from(table)
-        .select("*")
-        .order("timestamp", { ascending: false });
+    const [liveRows, briefingRows] = await Promise.all([
+        fetchTableRows(LIVE_INTEL_TABLE),
+        fetchTableRows(BRIEFING_INTEL_TABLE)
+    ]);
 
-    if (error) {
-        console.error("Failed to load intel:", error);
-        return;
-    }
+    const data = [...liveRows, ...briefingRows].sort((a, b) => {
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
 
     intelList.innerHTML = "";
-    data.forEach(item => intelList.appendChild(createIntelListItem(item, table)));
+    data.forEach(item => intelList.appendChild(createIntelListItem(item)));
 }
 
 // ===============================
