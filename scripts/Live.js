@@ -2,36 +2,47 @@ const regionFilter = document.getElementById("regionFilter");
 const categoryFilter = document.getElementById("categoryFilter");
 const feed = document.getElementById("feed");
 
+function getFilterValues() {
+    return {
+        region: regionFilter.value.toLowerCase(),
+        category: categoryFilter.value.toLowerCase()
+    };
+}
+
+function buildSourcesHTML(item) {
+    if (!item.source) return "";
+
+    const sources = item.source.split(",").map(s => s.trim());
+    return sources
+        .map(src => `<a href="${src}" target="_blank">${src}</a>`)
+        .join("<br>");
+}
+
+function matchesFilters(item, filterValues) {
+    const region = item.region?.toLowerCase() || "";
+    const category = item.category?.toLowerCase() || "";
+
+    const regionMatch = !filterValues.region || region === filterValues.region;
+    const categoryMatch = !filterValues.category || category === filterValues.category;
+
+    return regionMatch && categoryMatch;
+}
+
 // Render feed
 async function renderIntel() {
     const intel = await fetchLiveIntel({ limit: 200 });
-
     feed.innerHTML = "";
+    const filterValues = getFilterValues();
 
     intel.forEach(item => {
-        const region = item.region?.toLowerCase() || "";
+        if (!matchesFilters(item, filterValues)) return;
+
         const category = item.category?.toLowerCase() || "";
-
-        const regionFilterValue = regionFilter.value.toLowerCase();
-        const categoryFilterValue = categoryFilter.value.toLowerCase();
-
-        const regionMatch = !regionFilterValue || region === regionFilterValue;
-        const categoryMatch = !categoryFilterValue || category === categoryFilterValue;
-
-        if (!regionMatch || !categoryMatch) return;
 
         const card = document.createElement("div");
         card.className = "feed-item";
 
-        // Single source field
-        let sourcesHTML = "";
-        if (item.source) {
-            // allow comma-separated or single URL
-            const sources = item.source.split(",").map(s => s.trim());
-            sourcesHTML = sources
-                .map(src => `<a href="${src}" target="_blank">${src}</a>`)
-                .join("<br>");
-        }
+        const sourcesHTML = buildSourcesHTML(item);
 
         card.innerHTML = `
             <h3>

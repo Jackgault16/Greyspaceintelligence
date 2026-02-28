@@ -1,11 +1,44 @@
-const MAPBOX_TOKEN = "pk.eyJ1IjoiamFja2dhdWx0MTYiLCJhIjoiY21tM3Jsc2lzMDRnYzJxc2E5NXhiejRyaSJ9.Cf2rNQKOAO307w851VIzxw";
+function loadPublicConfigSync() {
+    if (window.__APP_CONFIG__) return window.__APP_CONFIG__;
 
-const SUPABASE_URL = "https://pdelotrjiapznwpsfshm.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_B91oKhmD6VwNQDZfnzWzzQ_82KWfzoy";
+    try {
+        const req = new XMLHttpRequest();
+        req.open("GET", "/api/public-config", false);
+        req.send(null);
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        if (req.status >= 200 && req.status < 300) {
+            return JSON.parse(req.responseText);
+        }
+    } catch (err) {
+        console.error("Failed to load /api/public-config:", err);
+    }
+
+    return {
+        MAPBOX_TOKEN: "",
+        SUPABASE_URL: "",
+        SUPABASE_ANON_KEY: ""
+    };
+}
+
+const PUBLIC_CONFIG = loadPublicConfigSync();
+const MAPBOX_TOKEN = PUBLIC_CONFIG.MAPBOX_TOKEN || "";
+const SUPABASE_URL = PUBLIC_CONFIG.SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = PUBLIC_CONFIG.SUPABASE_ANON_KEY || "";
+
+if (!MAPBOX_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error("Missing public config values. Set MAPBOX_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY in Cloudflare.");
+}
+
+const supabase =
+    window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+        : null;
 
 async function fetchLiveIntel({ limit = 50, days = 30 } = {}) {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        return [];
+    }
+
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
     const url =

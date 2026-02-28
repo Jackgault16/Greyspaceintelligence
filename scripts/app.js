@@ -301,8 +301,7 @@ const intelMapContainer = document.getElementById("intel-map");
 let intelMap = null;
 
 if (intelMapContainer && typeof mapboxgl !== "undefined") {
-    mapboxgl.accessToken =
-        "pk.eyJ1IjoiamFja2dhdWx0MTYiLCJhIjoiY21tM3Jsc2lzMDRnYzJxc2E5NXhiejRyaSJ9.Cf2rNQKOAO307w851VIzxw";
+    mapboxgl.accessToken = MAPBOX_TOKEN;
 
     intelMap = new mapboxgl.Map({
         container: "intel-map",

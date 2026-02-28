@@ -1,4 +1,4 @@
-// ===============================
+﻿// ===============================
 // GLOBAL ELEMENTS
 // ===============================
 const loginView = document.getElementById("loginView");
@@ -27,6 +27,20 @@ const resetFormButton = document.getElementById("resetFormButton");
 const deleteButton = document.getElementById("deleteButton");
 
 const citySearch = document.getElementById("citySearch");
+const adminEmailInput = document.getElementById("adminEmail");
+const adminPasswordInput = document.getElementById("adminPassword");
+
+const intelFields = {
+    title: intelTitle,
+    summary: intelSummary,
+    details: intelDetails,
+    region: intelRegion,
+    category: intelCategory,
+    timestamp: intelTimestamp,
+    sources: intelSources,
+    lat: intelLat,
+    lng: intelLng
+};
 
 let editingIntelId = null;
 
@@ -38,8 +52,16 @@ function setAutoTimestamp() {
     const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
         .toISOString()
         .slice(0, 16);
-
     intelTimestamp.value = local;
+}
+
+function setEditorStatus(message) {
+    editorStatus.textContent = message;
+}
+
+function setCoordinates(lng, lat) {
+    intelLat.value = lat.toFixed(6);
+    intelLng.value = lng.toFixed(6);
 }
 
 // ===============================
@@ -66,41 +88,36 @@ function placeAdminMarker(lng, lat) {
 // ===============================
 // MAP CLICK HANDLER
 // ===============================
-adminMap.on("click", async (e) => {
+adminMap.on("click", (e) => {
     const { lng, lat } = e.lngLat;
-
-    intelLat.value = lat.toFixed(6);
-    intelLng.value = lng.toFixed(6);
-
+    setCoordinates(lng, lat);
     placeAdminMarker(lng, lat);
 });
 
 // ===============================
 // CITY SEARCH
 // ===============================
+async function geocodeCity(query) {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}`;
+    const res = await fetch(url);
+    return res.json();
+}
+
 citySearch.addEventListener("keydown", async (e) => {
     if (e.key !== "Enter") return;
 
     const query = citySearch.value.trim();
     if (!query) return;
 
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}`;
-
     try {
-        const res = await fetch(url);
-        const json = await res.json();
-
+        const json = await geocodeCity(query);
         if (!json.features || json.features.length === 0) return;
 
         const place = json.features[0];
         const [lng, lat] = place.center;
-
-        intelLat.value = lat.toFixed(6);
-        intelLng.value = lng.toFixed(6);
-
+        setCoordinates(lng, lat);
         placeAdminMarker(lng, lat);
         adminMap.flyTo({ center: [lng, lat], zoom: 5 });
-
     } catch (err) {
         console.error("City search failed:", err);
     }
@@ -111,20 +128,17 @@ citySearch.addEventListener("keydown", async (e) => {
 // ===============================
 function clearForm() {
     editingIntelId = null;
-
-    intelTitle.value = "";
-    intelSummary.value = "";
-    intelDetails.value = "";
-    intelRegion.value = "";
-    intelCategory.value = "";
-    intelSources.value = "";
-    intelLat.value = "";
-    intelLng.value = "";
-
+    intelFields.title.value = "";
+    intelFields.summary.value = "";
+    intelFields.details.value = "";
+    intelFields.region.value = "";
+    intelFields.category.value = "";
+    intelFields.sources.value = "";
+    intelFields.lat.value = "";
+    intelFields.lng.value = "";
     setAutoTimestamp();
-
     deleteButton.style.display = "none";
-    editorStatus.textContent = "";
+    setEditorStatus("");
 }
 
 resetFormButton.addEventListener("click", clearForm);
@@ -132,6 +146,24 @@ resetFormButton.addEventListener("click", clearForm);
 // ===============================
 // LOAD EXISTING INTEL
 // ===============================
+function createIntelListItem(item) {
+    const div = document.createElement("div");
+    div.className = "intel-item";
+
+    div.innerHTML = `
+        <div class="intel-item-main">
+            <div class="intel-item-title">${item.title}</div>
+            <div class="intel-item-meta">${new Date(item.timestamp).toLocaleString()}</div>
+        </div>
+        <div class="intel-item-actions">
+            <button class="btn-secondary" data-id="${item.id}">EDIT</button>
+        </div>
+    `;
+
+    div.querySelector("button").addEventListener("click", () => loadIntelIntoEditor(item));
+    return div;
+}
+
 async function loadIntelList() {
     const { data, error } = await supabase
         .from("live_intel")
@@ -144,24 +176,7 @@ async function loadIntelList() {
     }
 
     intelList.innerHTML = "";
-
-    data.forEach(item => {
-        const div = document.createElement("div");
-        div.className = "intel-item";
-
-        div.innerHTML = `
-            <div class="intel-item-main">
-                <div class="intel-item-title">${item.title}</div>
-                <div class="intel-item-meta">${new Date(item.timestamp).toLocaleString()}</div>
-            </div>
-            <div class="intel-item-actions">
-                <button class="btn-secondary" data-id="${item.id}">EDIT</button>
-            </div>
-        `;
-
-        div.querySelector("button").addEventListener("click", () => loadIntelIntoEditor(item));
-        intelList.appendChild(div);
-    });
+    data.forEach(item => intelList.appendChild(createIntelListItem(item)));
 }
 
 // ===============================
@@ -170,61 +185,56 @@ async function loadIntelList() {
 function loadIntelIntoEditor(item) {
     editingIntelId = item.id;
 
-    intelTitle.value = item.title;
-    intelSummary.value = item.summary;
-    intelDetails.value = item.details;
-    intelRegion.value = item.region;
-    intelCategory.value = item.category;
-    intelTimestamp.value = item.timestamp.slice(0, 16);
-    intelSources.value = item.sources || "";
-    intelLat.value = item.lat;
-    intelLng.value = item.lng;
+    intelFields.title.value = item.title;
+    intelFields.summary.value = item.summary;
+    intelFields.details.value = item.details;
+    intelFields.region.value = item.region;
+    intelFields.category.value = item.category;
+    intelFields.timestamp.value = item.timestamp.slice(0, 16);
+    intelFields.sources.value = item.sources || "";
+    intelFields.lat.value = item.lat;
+    intelFields.lng.value = item.lng;
 
     placeAdminMarker(item.lng, item.lat);
-
     deleteButton.style.display = "inline-block";
+}
+
+function buildPayload() {
+    return {
+        title: intelFields.title.value.trim(),
+        summary: intelFields.summary.value.trim(),
+        details: intelFields.details.value.trim(),
+        region: intelFields.region.value.trim(),
+        category: intelFields.category.value,
+        timestamp: new Date(intelFields.timestamp.value).toISOString(),
+        sources: intelFields.sources.value.trim(),
+        lat: parseFloat(intelFields.lat.value),
+        lng: parseFloat(intelFields.lng.value)
+    };
 }
 
 // ===============================
 // PUBLISH / UPDATE
 // ===============================
 publishButton.addEventListener("click", async () => {
-    const payload = {
-        title: intelTitle.value.trim(),
-        summary: intelSummary.value.trim(),
-        details: intelDetails.value.trim(),
-        region: intelRegion.value.trim(),
-        category: intelCategory.value,
-        timestamp: new Date(intelTimestamp.value).toISOString(),
-        sources: intelSources.value.trim(),
-        lat: parseFloat(intelLat.value),
-        lng: parseFloat(intelLng.value)
-    };
+    const payload = buildPayload();
 
     if (!payload.title || !payload.summary || !payload.details) {
-        editorStatus.textContent = "Missing required fields.";
+        setEditorStatus("Missing required fields.");
         return;
     }
 
-    let result;
-    if (editingIntelId) {
-        result = await supabase
-            .from("live_intel")
-            .update(payload)
-            .eq("id", editingIntelId);
-    } else {
-        result = await supabase
-            .from("live_intel")
-            .insert(payload);
-    }
+    const result = editingIntelId
+        ? await supabase.from("live_intel").update(payload).eq("id", editingIntelId)
+        : await supabase.from("live_intel").insert(payload);
 
     if (result.error) {
-        editorStatus.textContent = "Error saving intel.";
+        setEditorStatus("Error saving intel.");
         console.error(result.error);
         return;
     }
 
-    editorStatus.textContent = "Saved.";
+    setEditorStatus("Saved.");
     clearForm();
     loadIntelList();
 });
@@ -241,11 +251,11 @@ deleteButton.addEventListener("click", async () => {
         .eq("id", editingIntelId);
 
     if (error) {
-        editorStatus.textContent = "Delete failed.";
+        setEditorStatus("Delete failed.");
         return;
     }
 
-    editorStatus.textContent = "Deleted.";
+    setEditorStatus("Deleted.");
     clearForm();
     loadIntelList();
 });
@@ -258,13 +268,10 @@ loginButton.addEventListener("click", async () => {
     loginButton.disabled = true;
     loginButton.textContent = "SIGNING IN…";
 
-    const email = document.getElementById("adminEmail").value.trim();
-    const password = document.getElementById("adminPassword").value.trim();
+    const email = adminEmailInput.value.trim();
+    const password = adminPasswordInput.value.trim();
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     loginButton.disabled = false;
     loginButton.textContent = "SIGN IN";
@@ -289,7 +296,6 @@ function showAdminView(user) {
     loginView.style.display = "none";
     adminView.style.display = "block";
     adminEmailDisplay.textContent = user.email;
-
     setAutoTimestamp();
     loadIntelList();
 }

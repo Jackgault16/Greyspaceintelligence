@@ -63,6 +63,24 @@ let activeRegion = "all";
 let activeSearch = "";
 let activeSort = "latest";
 
+const riskOrder = { high: 3, med: 2, low: 1 };
+
+function sortBriefings(data, sortType) {
+  if (sortType === "latest") {
+    data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    return;
+  }
+
+  if (sortType === "risk") {
+    data.sort((a, b) => riskOrder[b.risk] - riskOrder[a.risk]);
+    return;
+  }
+
+  if (sortType === "relevance") {
+    data.sort((a, b) => b.points.length - a.points.length);
+  }
+}
+
 // ===============================
 // RENDER CARDS
 // ===============================
@@ -121,16 +139,7 @@ function applyFilters() {
   }
 
   // Sort filter
-  if (activeSort === "latest") {
-    filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  }
-  if (activeSort === "risk") {
-    const order = { high: 3, med: 2, low: 1 };
-    filtered.sort((a, b) => order[b.risk] - order[a.risk]);
-  }
-  if (activeSort === "relevance") {
-    filtered.sort((a, b) => b.points.length - a.points.length);
-  }
+  sortBriefings(filtered, activeSort);
 
   renderBriefings(filtered);
 }
@@ -139,7 +148,7 @@ function applyFilters() {
 // MAP INITIALIZATION
 // ===============================
 function initBriefMap(brief) {
-  mapboxgl.accessToken = "pk.eyJ1IjoiamFja2dhdWx0MTYiLCJhIjoiY21tM3Jsc2lzMDRnYzJxc2E5NXhiejRyaSJ9.Cf2rNQKOAO307w851VIzxw";
+  mapboxgl.accessToken = MAPBOX_TOKEN;
 
   const map = new mapboxgl.Map({
     container: "brf-map",
