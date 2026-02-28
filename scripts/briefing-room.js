@@ -64,6 +64,7 @@ let activeCategory = "all";
 let activeRegion = "";
 let activeSearch = "";
 let activeSort = "latest";
+let briefingModalMap = null;
 
 const riskOrder = { high: 3, med: 2, low: 1 };
 const impactIconMap = {
@@ -233,7 +234,8 @@ function toBriefingItem(item) {
         : [0, 20],
     zoom: Number(item.zoom || item.map_zoom || 5),
     summary: item.summary || item.executive_summary || "",
-    analysis: detailsText,
+    whyItMatters: item.why_it_matters || item.whyItMatters || item.why || item.summary || item.executive_summary || "",
+    analysis: item.assessment || item.analysis || detailsText,
     points: points.length ? points : ["No key points available."],
     indicators: parseIndicators(item, detailsText),
     sources: parseSources(item)
@@ -296,7 +298,7 @@ function renderBriefings(data) {
 
       <div class="section">
         <div class="section-title">WHY IT MATTERS</div>
-        <div class="section-body">${brief.summary}</div>
+        <div class="section-body">${brief.whyItMatters || brief.summary}</div>
       </div>
 
       <div class="section">
@@ -374,7 +376,12 @@ function initBriefMap(brief) {
   if (!brief.coords || brief.coords.length !== 2) return;
   mapboxgl.accessToken = MAPBOX_TOKEN;
 
-  const map = new mapboxgl.Map({
+  if (briefingModalMap) {
+    briefingModalMap.remove();
+    briefingModalMap = null;
+  }
+
+  briefingModalMap = new mapboxgl.Map({
     container: "brf-map",
     style: "mapbox://styles/mapbox/dark-v11",
     center: brief.coords,
@@ -383,9 +390,10 @@ function initBriefMap(brief) {
 
   new mapboxgl.Marker({ color: "#ff3b3b" })
     .setLngLat(brief.coords)
-    .addTo(map);
+    .addTo(briefingModalMap);
 
-  setTimeout(() => map.resize(), 300);
+  setTimeout(() => briefingModalMap?.resize(), 50);
+  setTimeout(() => briefingModalMap?.resize(), 300);
 }
 
 // ===============================
@@ -404,12 +412,12 @@ function openBriefingModal(brief) {
     .join("");
 
   content.innerHTML = `
-    <div class="brf-article-layout">
-      <div class="brf-article-left">
-        <div id="brf-map" class="brf-article-map"></div>
+    <div class="brf-article-layout briefing-modal-body">
+      <div class="brf-article-left briefing-map-panel">
+        <div id="brf-map" class="brf-article-map briefing-map"></div>
       </div>
 
-      <div class="brf-article-right">
+      <div class="brf-article-right briefing-content-panel">
         <div class="card-header">
           <div>
             <div class="headline">${brief.title}</div>
@@ -431,7 +439,7 @@ function openBriefingModal(brief) {
 
         <div class="section">
           <div class="section-title">WHY IT MATTERS</div>
-          <div class="section-body">${brief.summary}</div>
+          <div class="section-body">${brief.whyItMatters || brief.summary}</div>
         </div>
 
         <div class="section">
@@ -470,15 +478,27 @@ function openBriefingModal(brief) {
   modal.classList.add("brf-modal--open");
 
   setTimeout(() => initBriefMap(brief), 250);
+  setTimeout(() => briefingModalMap?.resize(), 450);
 }
 
 function setupModalClose() {
   document.querySelectorAll("[data-modal-close]").forEach(el => {
     el.addEventListener("click", () => {
       document.getElementById("brf-modal").classList.remove("brf-modal--open");
+      if (briefingModalMap) {
+        briefingModalMap.remove();
+        briefingModalMap = null;
+      }
     });
   });
 }
+
+window.addEventListener("resize", () => {
+  const modal = document.getElementById("brf-modal");
+  if (modal?.classList.contains("brf-modal--open")) {
+    setTimeout(() => briefingModalMap?.resize(), 50);
+  }
+});
 
 // ===============================
 // FILTER EVENT LISTENERS

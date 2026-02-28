@@ -116,6 +116,11 @@ const categoryColors = {
     "GREY SPACE": "#22d3ee"
 };
 
+const TIMELINE_HOURS = 168; // 7 days
+const PIN_LIFETIME_HOURS = 24; // keep each pin visible for 24h
+const MAP_FETCH_LIMIT = 2000; // avoid dropping older events during timeline scrub
+const MAP_FETCH_DAYS = Math.ceil((TIMELINE_HOURS + PIN_LIFETIME_HOURS) / 24) + 1;
+
 // Kept for potential future use, not strictly required now
 function isoHoursAgo(hours) {
     return new Date(Date.now() - hours * 3600 * 1000).toISOString();
@@ -136,7 +141,7 @@ let updateMarkerVisibility = () => {};
    ============================================================ */
 
 if (timelineExists) {
-    const totalHours = 168;
+    const totalHours = TIMELINE_HOURS;
     const stepHours = 2;
 
     const bar = document.getElementById("timelineBar");
@@ -348,8 +353,8 @@ if (intelMapContainer && typeof mapboxgl !== "undefined") {
 
 async function loadMapEventsFromSupabase() {
     try {
-        // Pull up to 200 events from last 365 days
-        const data = await fetchLiveIntel({ limit: 200, days: 365 });
+        // Pull enough rows to cover full timeline + 24h pin life window
+        const data = await fetchLiveIntel({ limit: MAP_FETCH_LIMIT, days: MAP_FETCH_DAYS });
 
         // Only keep rows with valid coordinates (supports lng/long variants)
         eventsData = data
@@ -421,7 +426,7 @@ function addEventMarker(event) {
 updateMarkerVisibility = function (hoursAgo) {
     const now = Date.now();
     const windowEnd = now - hoursAgo * 3600 * 1000;
-    const windowStart = windowEnd - 24 * 3600 * 1000;
+    const windowStart = windowEnd - PIN_LIFETIME_HOURS * 3600 * 1000;
 
     activeMarkers.forEach(m => {
         const eventTime = new Date(m.event.timestamp).getTime();

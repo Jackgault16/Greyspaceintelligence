@@ -33,6 +33,8 @@ const briefingStatus = document.getElementById("briefingStatus");
 const briefingImpactLevel = document.getElementById("briefingImpactLevel");
 const briefingConfidence = document.getElementById("briefingConfidence");
 const briefingIndicators = document.getElementById("briefingIndicators");
+const briefingWhyMatters = document.getElementById("briefingWhyMatters");
+const briefingAssessment = document.getElementById("briefingAssessment");
 
 const publishButton = document.getElementById("publishButton");
 const resetFormButton = document.getElementById("resetFormButton");
@@ -60,7 +62,9 @@ const intelFields = {
     briefingStatus,
     briefingImpactLevel,
     briefingConfidence,
-    briefingIndicators
+    briefingIndicators,
+    briefingWhyMatters,
+    briefingAssessment
 };
 
 let editingIntelId = null;
@@ -363,6 +367,8 @@ function clearForm() {
     intelFields.briefingImpactLevel.value = "Noise";
     intelFields.briefingConfidence.value = "Medium";
     intelFields.briefingIndicators.value = "";
+    intelFields.briefingWhyMatters.value = "";
+    intelFields.briefingAssessment.value = "";
 
     setAutoTimestamp();
     deleteButton.style.display = "none";
@@ -443,6 +449,8 @@ function loadIntelIntoEditor(item, table) {
     intelFields.briefingIndicators.value = Array.isArray(indicatorsRaw)
         ? indicatorsRaw.join("\n")
         : String(indicatorsRaw).split(/\r?\n|;/).map(v => v.trim()).filter(Boolean).join("\n");
+    intelFields.briefingWhyMatters.value = item.why_it_matters || item.whyItMatters || item.why || item.summary || "";
+    intelFields.briefingAssessment.value = item.assessment || item.analysis || item.details || "";
 
     if (lng !== "" && lat !== "") {
         placeAdminMarker(Number(lng), Number(lat));
@@ -471,12 +479,16 @@ function buildBriefingPayload() {
     const points = parsePointsFromText(intelFields.briefingPoints.value);
     const indicators = parsePointsFromText(intelFields.briefingIndicators.value).slice(0, 4);
     const detailsText = intelFields.details.value.trim();
+    const whyItMatters = intelFields.briefingWhyMatters.value.trim();
+    const assessment = intelFields.briefingAssessment.value.trim();
 
     return {
         title: intelFields.title.value.trim(),
         summary: intelFields.summary.value.trim(),
         details: detailsText,
-        analysis: detailsText,
+        why_it_matters: whyItMatters,
+        assessment,
+        analysis: assessment || detailsText,
         region: intelFields.region.value.trim(),
         category: intelFields.category.value,
         timestamp: new Date(intelFields.timestamp.value).toISOString(),
