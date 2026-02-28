@@ -29,6 +29,10 @@ const briefingRisk = document.getElementById("briefingRisk");
 const briefingPriority = document.getElementById("briefingPriority");
 const briefingZoom = document.getElementById("briefingZoom");
 const briefingPoints = document.getElementById("briefingPoints");
+const briefingStatus = document.getElementById("briefingStatus");
+const briefingImpactLevel = document.getElementById("briefingImpactLevel");
+const briefingConfidence = document.getElementById("briefingConfidence");
+const briefingIndicators = document.getElementById("briefingIndicators");
 
 const publishButton = document.getElementById("publishButton");
 const resetFormButton = document.getElementById("resetFormButton");
@@ -52,7 +56,11 @@ const intelFields = {
     briefingRisk,
     briefingPriority,
     briefingZoom,
-    briefingPoints
+    briefingPoints,
+    briefingStatus,
+    briefingImpactLevel,
+    briefingConfidence,
+    briefingIndicators
 };
 
 let editingIntelId = null;
@@ -351,6 +359,10 @@ function clearForm() {
     intelFields.briefingPriority.value = "medium";
     intelFields.briefingZoom.value = "5";
     intelFields.briefingPoints.value = "";
+    intelFields.briefingStatus.value = "Ongoing";
+    intelFields.briefingImpactLevel.value = "Noise";
+    intelFields.briefingConfidence.value = "Medium";
+    intelFields.briefingIndicators.value = "";
 
     setAutoTimestamp();
     deleteButton.style.display = "none";
@@ -424,6 +436,13 @@ function loadIntelIntoEditor(item, table) {
     intelFields.briefingPriority.value = item.priority || "medium";
     intelFields.briefingZoom.value = item.zoom || item.map_zoom || 5;
     intelFields.briefingPoints.value = parsePointsFromItem(item).join("\n");
+    intelFields.briefingStatus.value = item.status || "Ongoing";
+    intelFields.briefingImpactLevel.value = item.impact_level || item.impact || "Noise";
+    intelFields.briefingConfidence.value = item.confidence || "Medium";
+    const indicatorsRaw = item.indicators || item.indicators_to_watch || item.watch_indicators || "";
+    intelFields.briefingIndicators.value = Array.isArray(indicatorsRaw)
+        ? indicatorsRaw.join("\n")
+        : String(indicatorsRaw).split(/\r?\n|;/).map(v => v.trim()).filter(Boolean).join("\n");
 
     if (lng !== "" && lat !== "") {
         placeAdminMarker(Number(lng), Number(lat));
@@ -450,6 +469,7 @@ function buildBriefingPayload() {
     const lat = parseFloat(intelFields.lat.value);
     const lng = parseFloat(intelFields.lng.value);
     const points = parsePointsFromText(intelFields.briefingPoints.value);
+    const indicators = parsePointsFromText(intelFields.briefingIndicators.value).slice(0, 4);
     const detailsText = intelFields.details.value.trim();
 
     return {
@@ -460,10 +480,15 @@ function buildBriefingPayload() {
         region: intelFields.region.value.trim(),
         category: intelFields.category.value,
         timestamp: new Date(intelFields.timestamp.value).toISOString(),
+        status: intelFields.briefingStatus.value || "Ongoing",
+        impact_level: intelFields.briefingImpactLevel.value || "Noise",
+        confidence: intelFields.briefingConfidence.value || "Medium",
         risk: intelFields.briefingRisk.value || "med",
         priority: intelFields.briefingPriority.value || "medium",
         points,
+        indicators,
         sources: intelFields.sources.value.trim(),
+        source_links: intelFields.sources.value.trim(),
         lat,
         lng,
         coords: Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : null,

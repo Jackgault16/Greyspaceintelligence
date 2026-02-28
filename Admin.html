@@ -370,6 +370,37 @@
                 <div id="briefingFields" style="display:none;">
                     <div class="admin-row">
                         <div>
+                            <label for="briefingStatus">Status</label>
+                            <select id="briefingStatus">
+                                <option value="Breaking">Breaking</option>
+                                <option value="Developing">Developing</option>
+                                <option value="Ongoing" selected>Ongoing</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="briefingImpactLevel">Impact Level</label>
+                            <select id="briefingImpactLevel">
+                                <option value="Strategic">Strategic</option>
+                                <option value="Operational">Operational</option>
+                                <option value="Tactical">Tactical</option>
+                                <option value="Noise" selected>Noise</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="admin-row">
+                        <div>
+                            <label for="briefingConfidence">Confidence</label>
+                            <select id="briefingConfidence">
+                                <option value="Low">Low</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="High">High</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="admin-row">
+                        <div>
                             <label for="briefingRisk">Risk</label>
                             <select id="briefingRisk">
                                 <option value="high">High</option>
@@ -396,6 +427,9 @@
 
                     <label for="briefingPoints">Key points (one per line)</label>
                     <textarea id="briefingPoints" placeholder="Point 1&#10;Point 2&#10;Point 3"></textarea>
+
+                    <label for="briefingIndicators">Indicators to Watch (one per line)</label>
+                    <textarea id="briefingIndicators" placeholder="Indicator 1&#10;Indicator 2&#10;Indicator 3"></textarea>
                 </div>
 
                 <div class="admin-row">
