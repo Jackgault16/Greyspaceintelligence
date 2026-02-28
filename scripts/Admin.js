@@ -11,6 +11,7 @@ const logoutLink = document.getElementById("logoutLink");
 
 const intelList = document.getElementById("intelList");
 const editorStatus = document.getElementById("editorStatus");
+const editorModeTitle = document.getElementById("editorModeTitle");
 
 const intelTitle = document.getElementById("intelTitle");
 const intelSummary = document.getElementById("intelSummary");
@@ -105,6 +106,15 @@ function getScopeMode() {
 function syncEditorModeUI() {
     const isBriefing = getScopeMode() === "BRIEFING";
     briefingFields.style.display = isBriefing ? "block" : "none";
+    if (editorModeTitle) {
+        editorModeTitle.textContent = isBriefing ? "BRIEFING ROOM EDITOR" : "LIVE EDITOR";
+    }
+    intelSummary.placeholder = isBriefing
+        ? "Executive summary for briefing readers"
+        : "One or two lines of context";
+    intelDetails.placeholder = isBriefing
+        ? "Detailed analysis body for briefing room"
+        : "Deeper context, implications, sources, etc.";
 }
 
 function parsePointsFromText(text) {

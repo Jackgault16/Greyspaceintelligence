@@ -289,7 +289,11 @@ function openBriefingModal(brief) {
         </ul>
 
         <h3>Analysis</h3>
-        <p class="brf-article-analysis">${brief.analysis || "No additional analysis provided."}</p>
+        <p class="brf-article-analysis">
+          This section provides deeper context, risk evaluation, and potential implications.
+          It can include escalation likelihood, regional impact, actor motivations, 
+          and intelligence confidence levels.
+        </p>
       </div>
     </div>
   `;
