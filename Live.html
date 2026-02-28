@@ -109,30 +109,8 @@
 
     <!-- CONFIG + LIVE LOGIC -->
     <script src="scripts/supabaseConfig.js"></script>
+    <script src="scripts/menu.js"></script>
     <script src="scripts/Live.js"></script>
-
-    <!-- HAMBURGER MENU -->
-    <script>
-        const menuButton = document.getElementById("menuButton");
-        const sideMenu = document.getElementById("sideMenu");
-        const menuOverlay = document.getElementById("menuOverlay");
-        const closeMenu = document.getElementById("closeMenu");
-
-        menuButton.addEventListener("click", () => {
-            sideMenu.classList.add("open");
-            menuOverlay.classList.add("visible");
-        });
-
-        closeMenu.addEventListener("click", () => {
-            sideMenu.classList.remove("open");
-            menuOverlay.classList.remove("visible");
-        });
-
-        menuOverlay.addEventListener("click", () => {
-            sideMenu.classList.remove("open");
-            menuOverlay.classList.remove("visible");
-        });
-    </script>
 
 </body>
 </html>

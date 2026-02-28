@@ -1,41 +1,4 @@
 /* ============================================================
-   GLOBAL MENU + NAVIGATION
-   ============================================================ */
-
-const menuButton = document.getElementById("menuButton");
-const sideMenu = document.getElementById("sideMenu");
-const closeMenu = document.getElementById("closeMenu");
-const menuOverlay = document.getElementById("menuOverlay");
-
-if (menuButton) {
-    menuButton.addEventListener("click", () => {
-        sideMenu.classList.add("open");
-        menuOverlay.classList.add("visible");
-    });
-}
-
-if (closeMenu) {
-    closeMenu.addEventListener("click", () => {
-        sideMenu.classList.remove("open");
-        menuOverlay.classList.remove("visible");
-    });
-}
-
-if (menuOverlay) {
-    menuOverlay.addEventListener("click", () => {
-        sideMenu.classList.remove("open");
-        menuOverlay.classList.remove("visible");
-    });
-}
-
-const menuHome = document.getElementById("menuHome");
-const menuAbout = document.getElementById("menuAbout");
-
-if (menuHome) menuHome.onclick = () => (window.location.href = "index.html");
-if (menuAbout) menuAbout.onclick = () => (window.location.href = "About.html");
-
-
-/* ============================================================
    TIMELINE CHECK
    ============================================================ */
 
