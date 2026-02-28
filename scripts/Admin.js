@@ -139,19 +139,51 @@ function extractMissingColumnName(error) {
     return match ? match[1] : null;
 }
 
+function getErrorText(error) {
+    const parts = [error?.message, error?.details, error?.hint]
+        .filter(Boolean)
+        .map(v => String(v).trim());
+    return parts.join(" | ");
+}
+
 async function saveWithColumnFallback(table, payload, editingId) {
     let workingPayload = { ...payload };
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 12; i++) {
         const result = editingId
             ? await supabase.from(table).update(workingPayload).eq("id", editingId)
             : await supabase.from(table).insert(workingPayload);
 
         if (!result.error) return result;
 
+        // Try shape conversions for stricter briefing_room schemas.
+        if (Array.isArray(workingPayload.points)) {
+            workingPayload.points = workingPayload.points.join("\n");
+            continue;
+        }
+        if (Array.isArray(workingPayload.coords)) {
+            const [lng, lat] = workingPayload.coords;
+            workingPayload.coords = `${lng},${lat}`;
+            continue;
+        }
+
         const missingColumn = extractMissingColumnName(result.error);
         if (!missingColumn || !(missingColumn in workingPayload)) {
-            return result;
+            // Final compatibility fallback: keep only safest common fields.
+            const minimalPayload = {
+                title: workingPayload.title,
+                summary: workingPayload.summary,
+                timestamp: workingPayload.timestamp,
+                category: workingPayload.category,
+                region: workingPayload.region,
+                sources: workingPayload.sources
+            };
+
+            const finalResult = editingId
+                ? await supabase.from(table).update(minimalPayload).eq("id", editingId)
+                : await supabase.from(table).insert(minimalPayload);
+
+            return finalResult.error ? result : finalResult;
         }
 
         delete workingPayload[missingColumn];
@@ -447,10 +479,19 @@ publishButton.addEventListener("click", async () => {
         return;
     }
 
+    if (isBriefing) {
+        const latValid = Number.isFinite(payload.lat);
+        const lngValid = Number.isFinite(payload.lng);
+        if (!payload.details || !latValid || !lngValid) {
+            setEditorStatus("Briefing requires details + latitude + longitude.");
+            return;
+        }
+    }
+
     const result = await saveWithColumnFallback(table, payload, editingIntelId);
 
     if (result.error) {
-        setEditorStatus("Error saving intel.");
+        setEditorStatus(`Error saving intel: ${getErrorText(result.error) || "Unknown error"}`);
         console.error(result.error);
         return;
     }
