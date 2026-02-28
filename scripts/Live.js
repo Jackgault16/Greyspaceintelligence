@@ -2,6 +2,22 @@ const regionFilter = document.getElementById("regionFilter");
 const categoryFilter = document.getElementById("categoryFilter");
 const feed = document.getElementById("feed");
 
+function parseScopeMeta(rawSources) {
+    const text = String(rawSources || "");
+    const match = text.match(/^__scope=(LIVE|BRIEFING|BOTH)__\s*\n?/);
+    const scope = match ? match[1] : "BOTH";
+    const cleanedSources = match
+        ? text.replace(/^__scope=(LIVE|BRIEFING|BOTH)__\s*\n?/, "")
+        : text;
+
+    return { scope, cleanedSources };
+}
+
+function isLiveVisible(item) {
+    const { scope } = parseScopeMeta(item.sources || item.source || "");
+    return scope === "BOTH" || scope === "LIVE";
+}
+
 function getFilterValues() {
     return {
         region: regionFilter.value.toLowerCase(),
@@ -10,7 +26,8 @@ function getFilterValues() {
 }
 
 function buildSourcesHTML(item) {
-    const sourceText = item.sources || item.source || "";
+    const { cleanedSources } = parseScopeMeta(item.sources || item.source || "");
+    const sourceText = cleanedSources;
     if (!sourceText) return "";
 
     const sources = sourceText.split(",").map(s => s.trim());
@@ -36,6 +53,7 @@ async function renderIntel() {
     const filterValues = getFilterValues();
 
     intel.forEach(item => {
+        if (!isLiveVisible(item)) return;
         if (!matchesFilters(item, filterValues)) return;
 
         const category = item.category?.toLowerCase() || "";
@@ -88,6 +106,7 @@ function updateMapMarkers(intel) {
     markers = [];
 
     intel.forEach(item => {
+        if (!isLiveVisible(item)) return;
         const lng = item.lng != null ? item.lng : item.long;
         if (item.lat == null || lng == null) return;
 

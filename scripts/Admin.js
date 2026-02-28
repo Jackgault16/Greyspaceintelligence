@@ -17,6 +17,7 @@ const intelSummary = document.getElementById("intelSummary");
 const intelDetails = document.getElementById("intelDetails");
 const intelRegion = document.getElementById("intelRegion");
 const intelCategory = document.getElementById("intelCategory");
+const intelScope = document.getElementById("intelScope");
 const intelTimestamp = document.getElementById("intelTimestamp");
 const intelSources = document.getElementById("intelSources");
 const intelLat = document.getElementById("intelLat");
@@ -36,6 +37,7 @@ const intelFields = {
     details: intelDetails,
     region: intelRegion,
     category: intelCategory,
+    scope: intelScope,
     timestamp: intelTimestamp,
     sources: intelSources,
     lat: intelLat,
@@ -62,6 +64,25 @@ function setEditorStatus(message) {
 function setCoordinates(lng, lat) {
     intelLat.value = lat.toFixed(6);
     intelLng.value = lng.toFixed(6);
+}
+
+function parseScopedSources(rawSources) {
+    const text = String(rawSources || "");
+    const match = text.match(/^__scope=(LIVE|BRIEFING|BOTH)__\s*\n?/);
+    if (match) {
+        return {
+            scope: match[1],
+            sources: text.replace(/^__scope=(LIVE|BRIEFING|BOTH)__\s*\n?/, "")
+        };
+    }
+    return {
+        scope: "BOTH",
+        sources: text
+    };
+}
+
+function encodeScopedSources(scope, plainSources) {
+    return `__scope=${scope || "BOTH"}__\n${plainSources || ""}`;
 }
 
 function regionFromCountryCode(rawCode) {
@@ -203,6 +224,7 @@ function clearForm() {
     intelFields.details.value = "";
     intelFields.region.value = "";
     intelFields.category.value = "";
+    intelFields.scope.value = "BOTH";
     intelFields.sources.value = "";
     intelFields.lat.value = "";
     intelFields.lng.value = "";
@@ -261,7 +283,9 @@ function loadIntelIntoEditor(item) {
     intelFields.region.value = item.region;
     intelFields.category.value = item.category;
     intelFields.timestamp.value = item.timestamp.slice(0, 16);
-    intelFields.sources.value = item.sources || "";
+    const parsedSources = parseScopedSources(item.sources);
+    intelFields.scope.value = parsedSources.scope;
+    intelFields.sources.value = parsedSources.sources;
     intelFields.lat.value = item.lat;
     intelFields.lng.value = item.lng;
 
@@ -277,7 +301,7 @@ function buildPayload() {
         region: intelFields.region.value.trim(),
         category: intelFields.category.value,
         timestamp: new Date(intelFields.timestamp.value).toISOString(),
-        sources: intelFields.sources.value.trim(),
+        sources: encodeScopedSources(intelFields.scope.value, intelFields.sources.value.trim()),
         lat: parseFloat(intelFields.lat.value),
         lng: parseFloat(intelFields.lng.value)
     };

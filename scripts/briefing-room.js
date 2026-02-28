@@ -87,6 +87,17 @@ function normalizeCategory(raw) {
   return (raw || "").toLowerCase().replace(/\s+/g, "");
 }
 
+function parseScopeMeta(rawSources) {
+  const text = String(rawSources || "");
+  const match = text.match(/^__scope=(LIVE|BRIEFING|BOTH)__\s*\n?/);
+  return match ? match[1] : "BOTH";
+}
+
+function isVisibleInBriefing(item) {
+  const scope = parseScopeMeta(item.sources || item.source || "");
+  return scope === "BOTH" || scope === "BRIEFING";
+}
+
 function derivePoints(details) {
   if (!details) return [];
 
@@ -130,8 +141,9 @@ function toBriefingItem(item) {
 async function loadBriefingsData() {
   try {
     const rows = await fetchLiveIntel({ limit: 300, days: 3650 });
-    if (rows.length) {
-      briefingsData = rows.map(toBriefingItem);
+    const visibleRows = rows.filter(isVisibleInBriefing);
+    if (visibleRows.length) {
+      briefingsData = visibleRows.map(toBriefingItem);
       return;
     }
   } catch (err) {
