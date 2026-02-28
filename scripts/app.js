@@ -20,25 +20,12 @@ if (feedContainer) {
     loadHomeFeed();
 }
 
-function parseScopeMeta(rawSources) {
-    const text = String(rawSources || "");
-    const match = text.match(/^__scope=(LIVE|BRIEFING|BOTH)__\s*\n?/);
-    return match ? match[1] : "BOTH";
-}
-
-function isVisibleOnLiveSurfaces(item) {
-    const scope = parseScopeMeta(item.sources || item.source || "");
-    return scope === "BOTH" || scope === "LIVE";
-}
-
 async function loadHomeFeed() {
     try {
         // Latest 7 items from last 365 days
         const data = await fetchLiveIntel({ limit: 7, days: 365 });
 
-        const feedData = data
-        .filter(isVisibleOnLiveSurfaces)
-        .map(item => ({
+        const feedData = data.map(item => ({
             time: new Date(item.timestamp).toLocaleString(),
             headline: item.title,
             summary: item.summary,
@@ -311,7 +298,6 @@ async function loadMapEventsFromSupabase() {
 
         // Only keep rows with lat/lng
         eventsData = data
-            .filter(isVisibleOnLiveSurfaces)
             .filter(item => item.lat != null && item.lng != null)
             .map(item => ({
                 id: item.id,

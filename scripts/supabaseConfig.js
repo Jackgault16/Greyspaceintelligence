@@ -16,7 +16,9 @@ function loadPublicConfigSync() {
     return {
         MAPBOX_TOKEN: "",
         SUPABASE_URL: "",
-        SUPABASE_ANON_KEY: ""
+        SUPABASE_ANON_KEY: "",
+        LIVE_INTEL_TABLE: "live_intel",
+        BRIEFING_INTEL_TABLE: "briefing_intel"
     };
 }
 
@@ -24,6 +26,8 @@ const PUBLIC_CONFIG = loadPublicConfigSync();
 const MAPBOX_TOKEN = PUBLIC_CONFIG.MAPBOX_TOKEN || "";
 const SUPABASE_URL = PUBLIC_CONFIG.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = PUBLIC_CONFIG.SUPABASE_ANON_KEY || "";
+const LIVE_INTEL_TABLE = PUBLIC_CONFIG.LIVE_INTEL_TABLE || "live_intel";
+const BRIEFING_INTEL_TABLE = PUBLIC_CONFIG.BRIEFING_INTEL_TABLE || "briefing_intel";
 
 if (!MAPBOX_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error("Missing public config values. Set MAPBOX_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY in Cloudflare.");
@@ -35,6 +39,14 @@ const supabase =
         : null;
 
 async function fetchLiveIntel({ limit = 50, days = 30 } = {}) {
+    return fetchIntelByTable(LIVE_INTEL_TABLE, { limit, days });
+}
+
+async function fetchBriefingIntel({ limit = 50, days = 30 } = {}) {
+    return fetchIntelByTable(BRIEFING_INTEL_TABLE, { limit, days });
+}
+
+async function fetchIntelByTable(table, { limit = 50, days = 30 } = {}) {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
         return [];
     }
@@ -42,7 +54,7 @@ async function fetchLiveIntel({ limit = 50, days = 30 } = {}) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
     const url =
-        `${SUPABASE_URL}/rest/v1/live_intel` +
+        `${SUPABASE_URL}/rest/v1/${table}` +
         `?select=*` +
         `&timestamp=gte.${encodeURIComponent(since)}` +
         `&order=timestamp.desc` +

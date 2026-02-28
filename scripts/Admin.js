@@ -1,4 +1,4 @@
-﻿// ===============================
+// ===============================
 // GLOBAL ELEMENTS
 // ===============================
 const loginView = document.getElementById("loginView");
@@ -45,6 +45,15 @@ const intelFields = {
 };
 
 let editingIntelId = null;
+let editingTable = null;
+
+function getSelectedTable() {
+    return intelFields.scope.value === "BRIEFING" ? BRIEFING_INTEL_TABLE : LIVE_INTEL_TABLE;
+}
+
+function tableLabel(table) {
+    return table === BRIEFING_INTEL_TABLE ? "BRIEFING" : "LIVE";
+}
 
 // ===============================
 // AUTO TIMESTAMP
@@ -64,25 +73,6 @@ function setEditorStatus(message) {
 function setCoordinates(lng, lat) {
     intelLat.value = lat.toFixed(6);
     intelLng.value = lng.toFixed(6);
-}
-
-function parseScopedSources(rawSources) {
-    const text = String(rawSources || "");
-    const match = text.match(/^__scope=(LIVE|BRIEFING|BOTH)__\s*\n?/);
-    if (match) {
-        return {
-            scope: match[1],
-            sources: text.replace(/^__scope=(LIVE|BRIEFING|BOTH)__\s*\n?/, "")
-        };
-    }
-    return {
-        scope: "BOTH",
-        sources: text
-    };
-}
-
-function encodeScopedSources(scope, plainSources) {
-    return `__scope=${scope || "BOTH"}__\n${plainSources || ""}`;
 }
 
 function regionFromCountryCode(rawCode) {
@@ -219,46 +209,53 @@ citySearch.addEventListener("keydown", async (e) => {
 // ===============================
 function clearForm() {
     editingIntelId = null;
+    editingTable = null;
+
     intelFields.title.value = "";
     intelFields.summary.value = "";
     intelFields.details.value = "";
     intelFields.region.value = "";
     intelFields.category.value = "";
-    intelFields.scope.value = "BOTH";
     intelFields.sources.value = "";
     intelFields.lat.value = "";
     intelFields.lng.value = "";
+
     setAutoTimestamp();
     deleteButton.style.display = "none";
     setEditorStatus("");
 }
 
 resetFormButton.addEventListener("click", clearForm);
+intelScope.addEventListener("change", () => {
+    clearForm();
+    loadIntelList();
+});
 
 // ===============================
 // LOAD EXISTING INTEL
 // ===============================
-function createIntelListItem(item) {
+function createIntelListItem(item, table) {
     const div = document.createElement("div");
     div.className = "intel-item";
 
     div.innerHTML = `
         <div class="intel-item-main">
             <div class="intel-item-title">${item.title}</div>
-            <div class="intel-item-meta">${new Date(item.timestamp).toLocaleString()}</div>
+            <div class="intel-item-meta">${new Date(item.timestamp).toLocaleString()} • ${tableLabel(table)}</div>
         </div>
         <div class="intel-item-actions">
             <button class="btn-secondary" data-id="${item.id}">EDIT</button>
         </div>
     `;
 
-    div.querySelector("button").addEventListener("click", () => loadIntelIntoEditor(item));
+    div.querySelector("button").addEventListener("click", () => loadIntelIntoEditor(item, table));
     return div;
 }
 
 async function loadIntelList() {
+    const table = getSelectedTable();
     const { data, error } = await supabase
-        .from("live_intel")
+        .from(table)
         .select("*")
         .order("timestamp", { ascending: false });
 
@@ -268,14 +265,15 @@ async function loadIntelList() {
     }
 
     intelList.innerHTML = "";
-    data.forEach(item => intelList.appendChild(createIntelListItem(item)));
+    data.forEach(item => intelList.appendChild(createIntelListItem(item, table)));
 }
 
 // ===============================
 // LOAD INTEL INTO EDITOR
 // ===============================
-function loadIntelIntoEditor(item) {
+function loadIntelIntoEditor(item, table) {
     editingIntelId = item.id;
+    editingTable = table;
 
     intelFields.title.value = item.title;
     intelFields.summary.value = item.summary;
@@ -283,11 +281,10 @@ function loadIntelIntoEditor(item) {
     intelFields.region.value = item.region;
     intelFields.category.value = item.category;
     intelFields.timestamp.value = item.timestamp.slice(0, 16);
-    const parsedSources = parseScopedSources(item.sources);
-    intelFields.scope.value = parsedSources.scope;
-    intelFields.sources.value = parsedSources.sources;
+    intelFields.sources.value = item.sources || "";
     intelFields.lat.value = item.lat;
     intelFields.lng.value = item.lng;
+    intelFields.scope.value = table === BRIEFING_INTEL_TABLE ? "BRIEFING" : "LIVE";
 
     placeAdminMarker(item.lng, item.lat);
     deleteButton.style.display = "inline-block";
@@ -301,7 +298,7 @@ function buildPayload() {
         region: intelFields.region.value.trim(),
         category: intelFields.category.value,
         timestamp: new Date(intelFields.timestamp.value).toISOString(),
-        sources: encodeScopedSources(intelFields.scope.value, intelFields.sources.value.trim()),
+        sources: intelFields.sources.value.trim(),
         lat: parseFloat(intelFields.lat.value),
         lng: parseFloat(intelFields.lng.value)
     };
@@ -312,6 +309,7 @@ function buildPayload() {
 // ===============================
 publishButton.addEventListener("click", async () => {
     const payload = buildPayload();
+    const table = editingTable || getSelectedTable();
 
     if (!payload.title || !payload.summary || !payload.details) {
         setEditorStatus("Missing required fields.");
@@ -319,8 +317,8 @@ publishButton.addEventListener("click", async () => {
     }
 
     const result = editingIntelId
-        ? await supabase.from("live_intel").update(payload).eq("id", editingIntelId)
-        : await supabase.from("live_intel").insert(payload);
+        ? await supabase.from(table).update(payload).eq("id", editingIntelId)
+        : await supabase.from(table).insert(payload);
 
     if (result.error) {
         setEditorStatus("Error saving intel.");
@@ -338,9 +336,10 @@ publishButton.addEventListener("click", async () => {
 // ===============================
 deleteButton.addEventListener("click", async () => {
     if (!editingIntelId) return;
+    const table = editingTable || getSelectedTable();
 
     const { error } = await supabase
-        .from("live_intel")
+        .from(table)
         .delete()
         .eq("id", editingIntelId);
 
