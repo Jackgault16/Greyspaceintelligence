@@ -296,8 +296,12 @@ async function loadMapEventsFromSupabase() {
         // Pull up to 200 events from last 365 days
         const data = await fetchLiveIntel({ limit: 200, days: 365 });
 
-        // Only keep rows with lat/lng
+        // Only keep rows with valid coordinates (supports lng/long variants)
         eventsData = data
+            .map(item => ({
+                ...item,
+                lng: item.lng != null ? item.lng : item.long
+            }))
             .filter(item => item.lat != null && item.lng != null)
             .map(item => ({
                 id: item.id,
@@ -311,7 +315,7 @@ async function loadMapEventsFromSupabase() {
 
         // Clear existing markers if any
         activeMarkers.forEach(m => m.marker.remove());
-        activeMarkers = eventsData.map(ev => addEventMarker(ev));
+        activeMarkers = eventsData.map(ev => addEventMarker(ev)).filter(Boolean);
 
         // Initial visibility at NOW (0 hours ago)
         updateMarkerVisibility(0);
