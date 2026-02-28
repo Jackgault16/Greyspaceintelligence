@@ -269,8 +269,8 @@ if (intelMapContainer && typeof mapboxgl !== "undefined") {
     intelMap = new mapboxgl.Map({
         container: "intel-map",
         style: "mapbox://styles/mapbox/dark-v11",
-        center: [0, -5],
-        zoom: 1.15,
+        center: [0, 0],
+        zoom: 1.0,
         pitch: 0,
         bearing: 0,
         attributionControl: false,

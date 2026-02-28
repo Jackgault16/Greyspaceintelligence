@@ -9,7 +9,8 @@ const loginButton = document.getElementById("loginButton");
 const loginError = document.getElementById("loginError");
 const logoutLink = document.getElementById("logoutLink");
 
-const intelList = document.getElementById("intelList");
+const liveIntelList = document.getElementById("liveIntelList");
+const briefingIntelList = document.getElementById("briefingIntelList");
 const editorStatus = document.getElementById("editorStatus");
 const editorModeTitle = document.getElementById("editorModeTitle");
 
@@ -391,12 +392,11 @@ async function loadIntelList() {
         fetchTableRows(BRIEFING_INTEL_TABLE)
     ]);
 
-    const data = [...liveRows, ...briefingRows].sort((a, b) => {
-        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-    });
+    liveIntelList.innerHTML = "";
+    briefingIntelList.innerHTML = "";
 
-    intelList.innerHTML = "";
-    data.forEach(item => intelList.appendChild(createIntelListItem(item)));
+    liveRows.forEach(item => liveIntelList.appendChild(createIntelListItem(item)));
+    briefingRows.forEach(item => briefingIntelList.appendChild(createIntelListItem(item)));
 }
 
 // ===============================
