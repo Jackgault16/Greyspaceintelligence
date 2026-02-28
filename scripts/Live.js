@@ -31,7 +31,7 @@ function matchesFilters(item, filterValues) {
 
 // Render feed
 async function renderIntel() {
-    const intel = await fetchLiveIntel({ limit: 200 });
+    const intel = await fetchLiveIntel({ limit: 200, days: 365 });
     feed.innerHTML = "";
     const filterValues = getFilterValues();
 
