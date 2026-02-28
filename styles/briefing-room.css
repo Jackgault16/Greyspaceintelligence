@@ -114,7 +114,7 @@ body.gs-body {
 }
 
 /* CARD */
-.brf-card {
+.briefing-card {
   background: #0d0f14;
   border: 1px solid #1a1d23;
   padding: 20px;
@@ -122,63 +122,114 @@ body.gs-body {
   position: relative;
   cursor: pointer;
   transition: border-color 0.15s ease;
+  margin-bottom: 14px;
 }
 
-.brf-card:hover {
+.briefing-card:hover {
   border-color: #4f7cff;
 }
 
-.brf-card__risk {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 4px;
-  height: 100%;
-  border-radius: 4px 0 0 4px;
-}
-
-.brf-risk--high { background: #ff3b3b; }
-.brf-risk--med { background: #ffb84d; }
-.brf-risk--low { background: #4f7cff; }
-
-.brf-card__priority {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  padding: 4px 8px;
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 4px;
-  letter-spacing: 0.06em;
-}
-
-.brf-priority--high { background: #ff3b3b; color: #fff; }
-.brf-priority--medium { background: #ffb84d; color: #000; }
-.brf-priority--low { background: #4f7cff; color: #fff; }
-
-.brf-card__meta {
-  font-size: 11px;
-  color: #8a8f9b;
+/* Intelligence card stack */
+.card-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
   margin-bottom: 10px;
-  letter-spacing: 0.06em;
 }
 
-.brf-card__title {
+.headline {
   font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 8px;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
-.brf-card__summary {
-  font-size: 13px;
-  color: #d5d7de;
-  margin-bottom: 12px;
-}
-
-.brf-card__points li {
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  opacity: 0.85;
   font-size: 12px;
-  color: #b5b8c2;
-  margin-bottom: 4px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.impact-badge {
+  justify-self: end;
+}
+
+.impact-strategic {
+  background: rgba(255, 59, 48, 0.18);
+  border-color: rgba(255, 59, 48, 0.35);
+}
+
+.impact-operational {
+  background: rgba(255, 149, 0, 0.18);
+  border-color: rgba(255, 149, 0, 0.35);
+}
+
+.impact-tactical {
+  background: rgba(255, 214, 10, 0.14);
+  border-color: rgba(255, 214, 10, 0.32);
+}
+
+.impact-noise {
+  background: rgba(142, 142, 147, 0.18);
+  border-color: rgba(142, 142, 147, 0.35);
+}
+
+.section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
+.section-body {
+  font-size: 14px;
+  line-height: 1.45;
+  opacity: 0.95;
+}
+
+.section ul {
+  margin: 8px 0 0 18px;
+}
+
+.section a {
+  color: #9eb8ff;
+  text-decoration: none;
+}
+
+.confidence-hint {
+  opacity: 0.7;
+}
+
+.card-footer {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  opacity: 0.75;
+  font-size: 12px;
 }
 
 /* MODAL */
@@ -225,9 +276,9 @@ body.gs-body {
 /* ARTICLE LAYOUT */
 .brf-article-layout {
   display: grid;
-  grid-template-columns: 1fr 1.3fr;
+  grid-template-columns: minmax(280px, 34%) 1fr;
   gap: 24px;
-  height: 70vh;
+  height: 75vh;
   padding-right: 8px;
 }
 
@@ -236,12 +287,15 @@ body.gs-body {
   border: 1px solid #1a1d23;
   border-radius: 8px;
   overflow: hidden;
+  position: sticky;
+  top: 0;
+  height: calc(75vh - 2px);
 }
 
 .brf-article-map {
   width: 100%;
   height: 100%;
-  min-height: 300px;
+  min-height: 260px;
 }
 
 .brf-article-right {
@@ -299,12 +353,18 @@ body.gs-body {
   }
 
   .brf-article-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(240px, 34%) 1fr;
     height: auto;
   }
 
   .brf-article-map {
     min-height: 280px;
+    height: 280px;
+  }
+
+  .brf-article-left {
+    position: sticky;
+    top: 0;
     height: 280px;
   }
 }
@@ -370,5 +430,19 @@ body.gs-body {
   .brf-article-meta {
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .card-header {
+    grid-template-columns: 1fr;
+  }
+
+  .impact-badge {
+    justify-self: start;
+  }
+
+  .brf-article-left {
+    position: relative;
+    top: auto;
+    height: 220px;
   }
 }

@@ -66,6 +66,12 @@ let activeSearch = "";
 let activeSort = "latest";
 
 const riskOrder = { high: 3, med: 2, low: 1 };
+const impactIconMap = {
+  Strategic: "🔴",
+  Operational: "🟠",
+  Tactical: "🟡",
+  Noise: "⚪"
+};
 
 function sortBriefings(data, sortType) {
   if (sortType === "latest") {
@@ -85,6 +91,28 @@ function sortBriefings(data, sortType) {
 
 function normalizeCategory(raw) {
   return (raw || "").toLowerCase().replace(/\s+/g, "");
+}
+
+function normalizeImpact(raw) {
+  const v = String(raw || "").toLowerCase();
+  if (v === "strategic") return "Strategic";
+  if (v === "operational") return "Operational";
+  if (v === "tactical") return "Tactical";
+  return "Noise";
+}
+
+function normalizeStatus(raw) {
+  const v = String(raw || "").toLowerCase();
+  if (v === "breaking") return "Breaking";
+  if (v === "developing") return "Developing";
+  return "Ongoing";
+}
+
+function normalizeConfidence(raw) {
+  const v = String(raw || "").toLowerCase();
+  if (v === "high") return "High";
+  if (v === "low") return "Low";
+  return "Medium";
 }
 
 function derivePoints(details) {
@@ -128,6 +156,56 @@ function parsePointsField(item, detailsText) {
   return derivePoints(detailsText);
 }
 
+function parseIndicators(item, detailsText) {
+  const raw = item.indicators || item.indicators_to_watch || item.watch_indicators;
+  if (Array.isArray(raw)) {
+    return raw.map(v => String(v).trim()).filter(Boolean).slice(0, 4);
+  }
+  if (typeof raw === "string") {
+    const parsed = raw
+      .split(/\r?\n|;/)
+      .map(v => v.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+    if (parsed.length) return parsed;
+  }
+  return derivePoints(detailsText).slice(0, 4);
+}
+
+function parseSources(item) {
+  const raw = item.sources || item.source || item.source_links;
+  if (Array.isArray(raw)) {
+    return raw
+      .map(s => {
+        if (typeof s === "string") return { name: s, url: s };
+        return { name: s?.name || s?.title || s?.url || "Source", url: s?.url || "#" };
+      })
+      .filter(s => s.name)
+      .slice(0, 6);
+  }
+  if (typeof raw === "string") {
+    return raw
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(s => ({ name: s, url: s }))
+      .slice(0, 6);
+  }
+  return [];
+}
+
+function formatTimestamp(ts) {
+  return new Date(ts).toLocaleString();
+}
+
+function formatUpdated(ts) {
+  return new Date(ts).toLocaleString();
+}
+
+function impactClassName(impact) {
+  return `impact-${impact.toLowerCase()}`;
+}
+
 function toBriefingItem(item) {
   const normalizedCategory = normalizeCategory(item.category || item.type);
   const detailsText = item.details || item.analysis || "";
@@ -146,6 +224,9 @@ function toBriefingItem(item) {
     timestamp: item.timestamp || new Date().toISOString(),
     risk: normalizeRisk(item.risk),
     priority: normalizePriority(item.priority),
+    status: normalizeStatus(item.status),
+    impactLevel: normalizeImpact(item.impact_level || item.impact || item.impact_level_primary),
+    confidence: normalizeConfidence(item.confidence),
     coords:
       lat != null && lng != null
         ? [lng, lat]
@@ -153,7 +234,9 @@ function toBriefingItem(item) {
     zoom: Number(item.zoom || item.map_zoom || 5),
     summary: item.summary || item.executive_summary || "",
     analysis: detailsText,
-    points: points.length ? points : ["No key points available."]
+    points: points.length ? points : ["No key points available."],
+    indicators: parseIndicators(item, detailsText),
+    sources: parseSources(item)
   };
 }
 
@@ -180,22 +263,71 @@ function renderBriefings(data) {
 
   data.forEach(brief => {
     const card = document.createElement("div");
-    card.className = "brf-card";
+    card.className = "briefing-card";
+
+    const indicatorsLis = (brief.indicators || [])
+      .slice(0, 4)
+      .map(p => `<li>${p}</li>`)
+      .join("");
+
+    const sourcesLis = (brief.sources || [])
+      .map(s => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.name}</a></li>`)
+      .join("");
 
     card.innerHTML = `
-      <div class="brf-card__risk brf-risk--${brief.risk}"></div>
-      <div class="brf-card__priority brf-priority--${brief.priority}">
-        ${brief.priority.toUpperCase()}
+      <div class="card-header">
+        <div>
+          <div class="headline">${brief.title}</div>
+          <div class="meta-row">
+            <span class="pill">${brief.region}</span>
+            <span class="pill">${brief.status}</span>
+            <span class="pill">${formatTimestamp(brief.timestamp)}</span>
+          </div>
+        </div>
+        <div class="pill impact-badge ${impactClassName(brief.impactLevel)}">
+          ${impactIconMap[brief.impactLevel]} ${brief.impactLevel.toUpperCase()}
+        </div>
       </div>
-      <div class="brf-card__meta">
-        ${brief.category.toUpperCase()} • ${brief.region.toUpperCase()} • 
-        ${new Date(brief.timestamp).toUTCString()}
+
+      <div class="section">
+        <div class="section-title">SITUATION SUMMARY</div>
+        <div class="section-body">${brief.summary}</div>
       </div>
-      <h3 class="brf-card__title">${brief.title}</h3>
-      <p class="brf-card__summary">${brief.summary}</p>
-      <ul class="brf-card__points">
-        ${brief.points.map(p => `<li>${p}</li>`).join("")}
-      </ul>
+
+      <div class="section">
+        <div class="section-title">WHY IT MATTERS</div>
+        <div class="section-body">${brief.summary}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">ASSESSMENT</div>
+        <div class="section-body">${brief.analysis || "No assessment available."}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">CONFIDENCE</div>
+        <div class="section-body">${brief.confidence} <span class="confidence-hint">(source reliability + corroboration)</span></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">INDICATORS TO WATCH</div>
+        <div class="section-body">
+          <ul>${indicatorsLis}</ul>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">SOURCES</div>
+        <div class="section-body">
+          <ul>${sourcesLis || "<li>No sources listed.</li>"}</ul>
+        </div>
+      </div>
+
+      <div class="card-footer">
+        <span class="pill">${brief.category.toUpperCase()}</span>
+        <span class="pill">${brief.region}</span>
+        <span class="pill">Updated: ${formatUpdated(brief.timestamp)}</span>
+      </div>
     `;
 
     card.addEventListener("click", () => openBriefingModal(brief));
@@ -263,6 +395,14 @@ function openBriefingModal(brief) {
   const modal = document.getElementById("brf-modal");
   const content = document.getElementById("brf-modal-content");
 
+  const indicatorsLis = (brief.indicators || [])
+    .slice(0, 4)
+    .map(p => `<li>${p}</li>`)
+    .join("");
+  const sourcesLis = (brief.sources || [])
+    .map(s => `<li><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.name}</a></li>`)
+    .join("");
+
   content.innerHTML = `
     <div class="brf-article-layout">
       <div class="brf-article-left">
@@ -270,30 +410,59 @@ function openBriefingModal(brief) {
       </div>
 
       <div class="brf-article-right">
-        <h2>${brief.title}</h2>
-
-        <div class="brf-article-meta">
-          <span>${brief.category.toUpperCase()}</span>
-          <span>${brief.region.toUpperCase()}</span>
-          <span>${new Date(brief.timestamp).toUTCString()}</span>
-          <span class="brf-article-priority brf-priority--${brief.priority}">
-            ${brief.priority.toUpperCase()}
-          </span>
+        <div class="card-header">
+          <div>
+            <div class="headline">${brief.title}</div>
+            <div class="meta-row">
+              <span class="pill">${brief.region}</span>
+              <span class="pill">${brief.status}</span>
+              <span class="pill">${formatTimestamp(brief.timestamp)}</span>
+            </div>
+          </div>
+          <div class="pill impact-badge ${impactClassName(brief.impactLevel)}">
+            ${impactIconMap[brief.impactLevel]} ${brief.impactLevel.toUpperCase()}
+          </div>
         </div>
 
-        <p class="brf-article-summary">${brief.summary}</p>
+        <div class="section">
+          <div class="section-title">SITUATION SUMMARY</div>
+          <div class="section-body">${brief.summary}</div>
+        </div>
 
-        <h3>Key Points</h3>
-        <ul class="brf-article-points">
-          ${brief.points.map(p => `<li>${p}</li>`).join("")}
-        </ul>
+        <div class="section">
+          <div class="section-title">WHY IT MATTERS</div>
+          <div class="section-body">${brief.summary}</div>
+        </div>
 
-        <h3>Analysis</h3>
-        <p class="brf-article-analysis">
-          This section provides deeper context, risk evaluation, and potential implications.
-          It can include escalation likelihood, regional impact, actor motivations, 
-          and intelligence confidence levels.
-        </p>
+        <div class="section">
+          <div class="section-title">ASSESSMENT</div>
+          <div class="section-body">${brief.analysis || "No assessment available."}</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">CONFIDENCE</div>
+          <div class="section-body">${brief.confidence} <span class="confidence-hint">(source reliability + corroboration)</span></div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">INDICATORS TO WATCH</div>
+          <div class="section-body">
+            <ul>${indicatorsLis}</ul>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">SOURCES</div>
+          <div class="section-body">
+            <ul>${sourcesLis || "<li>No sources listed.</li>"}</ul>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <span class="pill">${brief.category.toUpperCase()}</span>
+          <span class="pill">${brief.region}</span>
+          <span class="pill">Updated: ${formatUpdated(brief.timestamp)}</span>
+        </div>
       </div>
     </div>
   `;
