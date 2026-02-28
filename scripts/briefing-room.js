@@ -1,7 +1,7 @@
 // ===============================
 // SAMPLE DATA
 // ===============================
-const sampleBriefings = [
+const fallbackBriefings = [
   {
     id: 1,
     title: "Russian Force Posture Shift",
@@ -55,6 +55,8 @@ const sampleBriefings = [
   }
 ];
 
+let briefingsData = [...fallbackBriefings];
+
 // ===============================
 // STATE
 // ===============================
@@ -79,6 +81,64 @@ function sortBriefings(data, sortType) {
   if (sortType === "relevance") {
     data.sort((a, b) => b.points.length - a.points.length);
   }
+}
+
+function normalizeCategory(raw) {
+  return (raw || "").toLowerCase().replace(/\s+/g, "");
+}
+
+function derivePoints(details) {
+  if (!details) return [];
+
+  const linePoints = details
+    .split(/\r?\n/)
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  if (linePoints.length >= 2) return linePoints.slice(0, 4);
+
+  const sentencePoints = details
+    .split(/(?<=[.!?])\s+/)
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  return sentencePoints.slice(0, 4);
+}
+
+function toBriefingItem(item) {
+  const normalizedCategory = normalizeCategory(item.category);
+  const points = derivePoints(item.details);
+
+  return {
+    id: item.id,
+    title: item.title || "Untitled",
+    category: normalizedCategory || "greyspace",
+    region: item.region || "Global / Multi-Region",
+    timestamp: item.timestamp,
+    risk: "med",
+    priority: "medium",
+    coords:
+      item.lat != null && item.lng != null
+        ? [Number(item.lng), Number(item.lat)]
+        : [0, 20],
+    zoom: 5,
+    summary: item.summary || "",
+    points: points.length ? points : ["No key points available."]
+  };
+}
+
+async function loadBriefingsData() {
+  try {
+    const rows = await fetchLiveIntel({ limit: 300, days: 3650 });
+    if (rows.length) {
+      briefingsData = rows.map(toBriefingItem);
+      return;
+    }
+  } catch (err) {
+    console.error("Failed to load briefing data:", err);
+  }
+
+  briefingsData = [...fallbackBriefings];
 }
 
 // ===============================
@@ -117,11 +177,11 @@ function renderBriefings(data) {
 // FILTER LOGIC
 // ===============================
 function applyFilters() {
-  let filtered = [...sampleBriefings];
+  let filtered = [...briefingsData];
 
   // Category filter
   if (activeCategory !== "all") {
-    filtered = filtered.filter(b => b.category === activeCategory);
+    filtered = filtered.filter(b => normalizeCategory(b.category) === activeCategory);
   }
 
   // Region filter
@@ -149,6 +209,7 @@ function applyFilters() {
 // MAP INITIALIZATION
 // ===============================
 function initBriefMap(brief) {
+  if (!brief.coords || brief.coords.length !== 2) return;
   mapboxgl.accessToken = MAPBOX_TOKEN;
 
   const map = new mapboxgl.Map({
@@ -258,7 +319,9 @@ function setupFilters() {
 // INIT
 // ===============================
 document.addEventListener("DOMContentLoaded", () => {
-  renderBriefings(sampleBriefings);
+  loadBriefingsData().then(() => {
+    applyFilters();
+  });
   setupFilters();
   setupModalClose();
 });

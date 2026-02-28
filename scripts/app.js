@@ -22,8 +22,8 @@ if (feedContainer) {
 
 async function loadHomeFeed() {
     try {
-        // Latest 7 items from last 30 days
-        const data = await fetchLiveIntel({ limit: 7, days: 30 });
+        // Latest 7 items from last 365 days
+        const data = await fetchLiveIntel({ limit: 7, days: 365 });
 
         const feedData = data.map(item => ({
             time: new Date(item.timestamp).toLocaleString(),
@@ -293,8 +293,8 @@ if (intelMapContainer && typeof mapboxgl !== "undefined") {
 
 async function loadMapEventsFromSupabase() {
     try {
-        // Pull up to 200 events from last 7 days
-        const data = await fetchLiveIntel({ limit: 200, days: 7 });
+        // Pull up to 200 events from last 365 days
+        const data = await fetchLiveIntel({ limit: 200, days: 365 });
 
         // Only keep rows with lat/lng
         eventsData = data

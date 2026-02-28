@@ -10,9 +10,10 @@ function getFilterValues() {
 }
 
 function buildSourcesHTML(item) {
-    if (!item.source) return "";
+    const sourceText = item.sources || item.source || "";
+    if (!sourceText) return "";
 
-    const sources = item.source.split(",").map(s => s.trim());
+    const sources = sourceText.split(",").map(s => s.trim());
     return sources
         .map(src => `<a href="${src}" target="_blank">${src}</a>`)
         .join("<br>");
@@ -87,10 +88,11 @@ function updateMapMarkers(intel) {
     markers = [];
 
     intel.forEach(item => {
-        if (!item.lat || !item.long) return;
+        const lng = item.lng != null ? item.lng : item.long;
+        if (item.lat == null || lng == null) return;
 
         const marker = new mapboxgl.Marker({ color: "#f97316" })
-            .setLngLat([item.long, item.lat])
+            .setLngLat([lng, item.lat])
             .setPopup(new mapboxgl.Popup().setHTML(`
                 <strong>${item.title}</strong><br>
                 ${item.region} • ${item.category}<br>
