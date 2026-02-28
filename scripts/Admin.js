@@ -135,8 +135,18 @@ function parsePointsFromItem(item) {
 
 function extractMissingColumnName(error) {
     const message = String(error?.message || "");
-    const match = message.match(/column \"([a-zA-Z0-9_]+)\"/);
-    return match ? match[1] : null;
+    const patterns = [
+        /column \"([a-zA-Z0-9_]+)\"/i,
+        /could not find the '([a-zA-Z0-9_]+)' column/i,
+        /'([a-zA-Z0-9_]+)' column/i
+    ];
+
+    for (const pattern of patterns) {
+        const match = message.match(pattern);
+        if (match) return match[1];
+    }
+
+    return null;
 }
 
 function getErrorText(error) {
