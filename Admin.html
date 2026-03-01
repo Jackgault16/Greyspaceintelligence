@@ -118,6 +118,37 @@
             opacity: 0.65;
         }
 
+        #briefPinsMap {
+            width: 100%;
+            height: 200px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #1b1b26;
+            margin-top: 8px;
+        }
+
+        .pins-list {
+            margin-top: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .pin-row {
+            border: 1px solid #1b1b26;
+            border-radius: 8px;
+            padding: 8px;
+            background: #090b11;
+        }
+
+        .pin-row__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.75rem;
+            opacity: 0.82;
+        }
+
         .btn-primary,
         .btn-secondary,
         .btn-danger {
@@ -421,6 +452,13 @@
                             </div>
                             <label for="briefingTags">Tags (comma-separated)</label>
                             <input id="briefingTags" type="text" placeholder="e.g. sanctions, cyber, election">
+
+                            <div id="briefPinsSection" class="admin-subsection" style="display:none;">
+                                <h3>PINS</h3>
+                                <div class="field-help">Click the map to add a pin. Pins are optional but preferred for brief geography.</div>
+                                <div id="briefPinsMap"></div>
+                                <div id="briefPinsList" class="pins-list"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -549,6 +587,7 @@
 
     <!-- CONFIG + ADMIN LOGIC -->
     <script src="scripts/supabaseConfig.js"></script>
+    <script src="scripts/regionFrames.js"></script>
     <script src="scripts/menu.js"></script>
     <script src="scripts/Admin.js"></script>
 

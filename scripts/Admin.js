@@ -9,18 +9,9 @@
 // PriorityLevel: 'low' | 'medium' | 'high'
 // ===============================
 
-const REGION_OPTIONS = [
-    { key: "north_america", label: "North America" },
-    { key: "south_america", label: "South America" },
-    { key: "europe", label: "Europe" },
-    { key: "middle_east", label: "Middle East" },
-    { key: "africa", label: "Africa" },
-    { key: "central_asia", label: "Central Asia" },
-    { key: "east_asia", label: "East Asia" },
-    { key: "south_asia", label: "South Asia" },
-    { key: "southeast_asia", label: "Southeast Asia" },
-    { key: "oceania", label: "Oceania" },
-    { key: "global_multi_region", label: "Global / Multi-Region" }
+const REGION_OPTIONS = window.BRIEF_REGION_OPTIONS || [
+    { key: "global", label: "Global" },
+    { key: "europe", label: "Europe" }
 ];
 
 const SCHEDULED_SUBTYPES = [
@@ -78,6 +69,8 @@ const briefDocSubtypeSpecialWrap = document.getElementById("briefDocSubtypeSpeci
 const briefDocSubtypeSpecial = document.getElementById("briefDocSubtypeSpecial");
 const briefDocumentTypeFields = document.getElementById("briefDocumentTypeFields");
 const briefingTags = document.getElementById("briefingTags");
+const briefPinsSection = document.getElementById("briefPinsSection");
+const briefPinsList = document.getElementById("briefPinsList");
 
 const publishButton = document.getElementById("publishButton");
 const resetFormButton = document.getElementById("resetFormButton");
@@ -90,6 +83,18 @@ const adminPasswordInput = document.getElementById("adminPassword");
 let editingIntelId = null;
 let editingTable = null;
 let adminMarker = null;
+let briefPinsMap = null;
+let briefPins = [];
+let briefPinMarkers = [];
+
+function generateUuid() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+}
 
 function normalizeRiskLevel(value) {
     const v = String(value || "").toLowerCase();
@@ -154,10 +159,12 @@ function sourceInputFromStored(value) {
 
 function regionKeyByLabel(label) {
     const hit = REGION_OPTIONS.find(r => r.label.toLowerCase() === String(label || "").toLowerCase().trim());
-    return hit ? hit.key : "";
+    if (hit) return hit.key;
+    return window.normalizeRegionKey ? window.normalizeRegionKey(label) : "";
 }
 
 function regionLabelByKey(key) {
+    if (window.regionDisplayNameFromKey) return window.regionDisplayNameFromKey(key);
     const hit = REGION_OPTIONS.find(r => r.key === String(key || "").toLowerCase().trim());
     return hit ? hit.label : key;
 }
@@ -258,6 +265,8 @@ function syncEditorModeUI() {
 
     const isDocument = isBriefing && getBriefingEntryKind() === "document";
     briefDocumentTypeFields.style.display = isDocument ? "block" : "none";
+    if (briefPinsSection) briefPinsSection.style.display = isDocument ? "block" : "none";
+    if (isDocument) initBriefPinsMap();
     fillSubtypeOptions();
 }
 
@@ -387,6 +396,209 @@ function placeAdminMarker(lng, lat) {
         .addTo(adminMap);
 }
 
+function initBriefPinsMap() {
+    if (briefPinsMap || !document.getElementById("briefPinsMap")) return;
+
+    const frame = (window.REGION_FRAMES && window.REGION_FRAMES.global) || { center: [0, 20], zoom: 1.2 };
+    briefPinsMap = new mapboxgl.Map({
+        container: "briefPinsMap",
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: frame.center,
+        zoom: frame.zoom
+    });
+
+    briefPinsMap.on("click", e => {
+        briefPins.push({
+            id: generateUuid(),
+            label: `Hotspot ${briefPins.length + 1}`,
+            latitude: Number(e.lngLat.lat.toFixed(6)),
+            longitude: Number(e.lngLat.lng.toFixed(6)),
+            region: intelRegion.value || "",
+            category: intelCategory.value || "",
+            risk_level: "medium",
+            event_id: "",
+            created_at: new Date().toISOString()
+        });
+        renderBriefPins();
+    });
+}
+
+function updatePinMarkers() {
+    briefPinMarkers.forEach(m => m.remove());
+    briefPinMarkers = [];
+    if (!briefPinsMap) return;
+
+    const bounds = new mapboxgl.LngLatBounds();
+    let hasBounds = false;
+
+    briefPins.forEach(pin => {
+        if (!Number.isFinite(pin.latitude) || !Number.isFinite(pin.longitude)) return;
+        const marker = new mapboxgl.Marker({ color: "#22c55e" })
+            .setLngLat([pin.longitude, pin.latitude])
+            .addTo(briefPinsMap);
+        briefPinMarkers.push(marker);
+        bounds.extend([pin.longitude, pin.latitude]);
+        hasBounds = true;
+    });
+
+    if (hasBounds && briefPins.length > 1) {
+        briefPinsMap.fitBounds(bounds, { padding: 40, duration: 0 });
+    }
+}
+
+function renderBriefPins() {
+    if (!briefPinsList) return;
+    if (!briefPins.length) {
+        briefPinsList.innerHTML = '<div class="field-help">No pins added yet. Click the map to add one.</div>';
+        updatePinMarkers();
+        return;
+    }
+
+    briefPinsList.innerHTML = briefPins.map((pin, idx) => `
+        <div class="pin-row">
+            <div class="pin-row__header">
+                <span>Pin ${idx + 1}</span>
+                <button type="button" class="btn-danger pin-delete-btn" data-pin-id="${pin.id}">Delete</button>
+            </div>
+            <label>Label</label>
+            <input type="text" class="pin-input" data-field="label" data-pin-id="${pin.id}" value="${String(pin.label || "").replace(/"/g, "&quot;")}">
+
+            <div class="admin-row">
+                <div>
+                    <label>Latitude</label>
+                    <input type="text" value="${pin.latitude}" readonly>
+                </div>
+                <div>
+                    <label>Longitude</label>
+                    <input type="text" value="${pin.longitude}" readonly>
+                </div>
+            </div>
+
+            <div class="admin-row">
+                <div>
+                    <label>Region (optional)</label>
+                    <input type="text" class="pin-input" data-field="region" data-pin-id="${pin.id}" value="${String(pin.region || "").replace(/"/g, "&quot;")}">
+                </div>
+                <div>
+                    <label>Category (optional)</label>
+                    <input type="text" class="pin-input" data-field="category" data-pin-id="${pin.id}" value="${String(pin.category || "").replace(/"/g, "&quot;")}">
+                </div>
+            </div>
+
+            <div class="admin-row">
+                <div>
+                    <label>Risk Level</label>
+                    <select class="pin-input" data-field="risk_level" data-pin-id="${pin.id}">
+                        <option value="low" ${pin.risk_level === "low" ? "selected" : ""}>low</option>
+                        <option value="medium" ${pin.risk_level === "medium" ? "selected" : ""}>medium</option>
+                        <option value="high" ${pin.risk_level === "high" ? "selected" : ""}>high</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Event ID (optional UUID)</label>
+                    <input type="text" class="pin-input" data-field="event_id" data-pin-id="${pin.id}" value="${String(pin.event_id || "").replace(/"/g, "&quot;")}">
+                </div>
+            </div>
+        </div>
+    `).join("");
+
+    briefPinsList.querySelectorAll(".pin-input").forEach(el => {
+        el.addEventListener("input", e => {
+            const pinId = e.target.getAttribute("data-pin-id");
+            const field = e.target.getAttribute("data-field");
+            const pin = briefPins.find(p => p.id === pinId);
+            if (!pin || !field) return;
+            pin[field] = e.target.value;
+        });
+    });
+
+    briefPinsList.querySelectorAll(".pin-delete-btn").forEach(btn => {
+        btn.addEventListener("click", e => {
+            const id = e.currentTarget.getAttribute("data-pin-id");
+            briefPins = briefPins.filter(p => p.id !== id);
+            renderBriefPins();
+        });
+    });
+
+    updatePinMarkers();
+}
+
+async function loadBriefPins(briefId) {
+    if (!briefId) {
+        briefPins = [];
+        renderBriefPins();
+        return;
+    }
+
+    const { data, error } = await supabase
+        .from("brief_document_pins")
+        .select("*")
+        .eq("brief_id", briefId)
+        .order("created_at", { ascending: true });
+
+    if (error) {
+        console.error("Failed loading brief pins:", error);
+        briefPins = [];
+        renderBriefPins();
+        return;
+    }
+
+    briefPins = (data || []).map(pin => ({
+        id: pin.id,
+        label: pin.label || "",
+        latitude: Number(pin.latitude),
+        longitude: Number(pin.longitude),
+        region: pin.region || "",
+        category: pin.category || "",
+        risk_level: normalizeRiskLevel(pin.risk_level || "medium"),
+        event_id: pin.event_id || "",
+        created_at: pin.created_at || new Date().toISOString()
+    }));
+
+    renderBriefPins();
+}
+
+async function syncBriefPins(briefId) {
+    if (!briefId) return { error: null };
+
+    const { data: existingRows, error: existingError } = await supabase
+        .from("brief_document_pins")
+        .select("id")
+        .eq("brief_id", briefId);
+
+    if (existingError) return { error: existingError };
+
+    const currentIds = briefPins.map(p => p.id);
+    const existingIds = (existingRows || []).map(r => r.id);
+    const deleteIds = existingIds.filter(id => !currentIds.includes(id));
+
+    if (deleteIds.length) {
+        const { error } = await supabase.from("brief_document_pins").delete().in("id", deleteIds);
+        if (error) return { error };
+    }
+
+    if (!briefPins.length) return { error: null };
+
+    const upsertRows = briefPins
+        .map(pin => ({
+            id: pin.id || generateUuid(),
+            brief_id: briefId,
+            label: String(pin.label || "").trim() || null,
+            latitude: Number(pin.latitude),
+            longitude: Number(pin.longitude),
+            region: String(pin.region || "").trim() || null,
+            category: String(pin.category || "").trim() || null,
+            risk_level: normalizeRiskLevel(pin.risk_level || "medium"),
+            event_id: String(pin.event_id || "").trim() || null
+        }))
+        .filter(row => Number.isFinite(row.latitude) && Number.isFinite(row.longitude));
+
+    if (!upsertRows.length) return { error: null };
+
+    const { error } = await supabase.from("brief_document_pins").upsert(upsertRows, { onConflict: "id" });
+    return { error };
+}
+
 adminMap.on("click", async e => {
     const { lng, lat } = e.lngLat;
     setCoordinates(lng, lat);
@@ -457,6 +669,8 @@ function clearForm() {
     briefDocType.value = "scheduled";
     briefingTags.value = "";
     briefDocSubtypeSpecial.value = "";
+    briefPins = [];
+    renderBriefPins();
 
     fillSubtypeOptions();
     setAutoTimestamp();
@@ -480,7 +694,7 @@ function createIntelListItem(item, table) {
         </div>
     `;
 
-    div.querySelector("button").addEventListener("click", () => loadIntelIntoEditor(item, table));
+    div.querySelector("button").addEventListener("click", async () => loadIntelIntoEditor(item, table));
     return div;
 }
 
@@ -507,7 +721,7 @@ function getDocumentSubtypeFromUI() {
     return briefDocSubtypeSelect.value;
 }
 
-function loadIntelIntoEditor(item, table) {
+async function loadIntelIntoEditor(item, table) {
     editingIntelId = item.id;
     editingTable = table;
 
@@ -560,9 +774,12 @@ function loadIntelIntoEditor(item, table) {
         } else {
             briefDocSubtypeSelect.value = item.brief_subtype || briefDocSubtypeSelect.value;
         }
+        await loadBriefPins(item.id);
     } else {
         briefDocType.value = "scheduled";
         briefDocSubtypeSpecial.value = "";
+        briefPins = [];
+        renderBriefPins();
         fillSubtypeOptions();
     }
 
@@ -647,7 +864,10 @@ function buildBriefDocumentPayload(isUpdate) {
     const regionLabel = intelRegion.value.trim();
     const regionKey = regionKeyByLabel(regionLabel);
 
+    const id = isUpdate ? editingIntelId : generateUuid();
+
     return {
+        id,
         title: intelTitle.value.trim(),
         brief_type: briefType,
         brief_subtype: briefType === "regional" && regionKey ? regionKey : subtype,
@@ -719,6 +939,16 @@ publishButton.addEventListener("click", async () => {
         return;
     }
 
+    if (table === BRIEF_DOCUMENTS_TABLE) {
+        const briefId = payload.id || editingIntelId;
+        const pinSync = await syncBriefPins(briefId);
+        if (pinSync.error) {
+            setEditorStatus(`Brief saved, but pin sync failed: ${getErrorText(pinSync.error) || "Unknown error"}`);
+            console.error(pinSync.error);
+            return;
+        }
+    }
+
     setEditorStatus("Saved.");
     clearForm();
     await loadIntelList();
@@ -784,9 +1014,21 @@ async function showAdminView(user) {
     loginView.style.display = "none";
     adminView.style.display = "block";
     adminEmailDisplay.textContent = user.email;
+    if (intelRegion) {
+        const current = intelRegion.value;
+        intelRegion.innerHTML = '<option value="">Select...</option>';
+        REGION_OPTIONS.forEach(opt => {
+            const node = document.createElement("option");
+            node.value = opt.label;
+            node.textContent = opt.label;
+            intelRegion.appendChild(node);
+        });
+        intelRegion.value = current;
+    }
     setAutoTimestamp();
     fillSubtypeOptions();
     syncEditorModeUI();
+    renderBriefPins();
     await loadIntelList();
 }
 

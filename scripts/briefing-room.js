@@ -1,17 +1,4 @@
-const REGION_OPTIONS = [
-  { key: "north_america", label: "North America" },
-  { key: "south_america", label: "South America" },
-  { key: "europe", label: "Europe" },
-  { key: "middle_east", label: "Middle East" },
-  { key: "africa", label: "Africa" },
-  { key: "central_asia", label: "Central Asia" },
-  { key: "east_asia", label: "East Asia" },
-  { key: "south_asia", label: "South Asia" },
-  { key: "southeast_asia", label: "Southeast Asia" },
-  { key: "oceania", label: "Oceania" },
-  { key: "global_multi_region", label: "Global / Multi-Region" }
-];
-
+const REGION_OPTIONS = window.BRIEF_REGION_OPTIONS || [];
 const IMPACT_ORDER = { noise: 1, tactical: 2, operational: 3, strategic: 4 };
 const RISK_ORDER = { low: 1, medium: 2, high: 3 };
 const PRIORITY_ORDER = { low: 1, medium: 2, high: 3 };
@@ -30,6 +17,7 @@ let briefDocumentsData = [];
 let eventBriefsData = [];
 let briefingModalMap = null;
 let previousBodyOverflow = "";
+let activeDocPinFeatures = [];
 
 const briefDocGrid = document.getElementById("briefDocGrid");
 const eventBriefGrid = document.getElementById("eventBriefGrid");
@@ -41,15 +29,11 @@ function normalizeCategory(raw) {
 }
 
 function normalizeRegionToKey(raw) {
-  const value = String(raw || "").toLowerCase().trim();
-  const byLabel = REGION_OPTIONS.find(r => r.label.toLowerCase() === value);
-  if (byLabel) return byLabel.key;
-  const byKey = REGION_OPTIONS.find(r => r.key === value.replace(/\s+/g, "_"));
-  if (byKey) return byKey.key;
-  return value.replace(/\s+/g, "_");
+  return window.normalizeRegionKey ? window.normalizeRegionKey(raw) : String(raw || "").toLowerCase().replace(/\s+/g, "_");
 }
 
 function regionLabelByKey(key) {
+  if (window.regionDisplayNameFromKey) return window.regionDisplayNameFromKey(key);
   const found = REGION_OPTIONS.find(r => r.key === String(key || "").toLowerCase());
   return found ? found.label : String(key || "");
 }
@@ -84,11 +68,7 @@ function parseListField(raw, limit = 12) {
     return raw.map(v => String(v).trim()).filter(Boolean).slice(0, limit);
   }
   if (typeof raw === "string") {
-    return raw
-      .split(/\r?\n|,|;/)
-      .map(v => v.trim())
-      .filter(Boolean)
-      .slice(0, limit);
+    return raw.split(/\r?\n|,|;/).map(v => v.trim()).filter(Boolean).slice(0, limit);
   }
   return [];
 }
@@ -100,11 +80,8 @@ function parseSources(raw) {
 function sourceDomain(input) {
   const value = String(input || "").trim();
   if (!value) return "";
-
   try {
-    const url = value.startsWith("http://") || value.startsWith("https://")
-      ? new URL(value)
-      : null;
+    const url = value.startsWith("http://") || value.startsWith("https://") ? new URL(value) : null;
     return url ? url.hostname.replace(/^www\./, "") : value;
   } catch (_) {
     return value.replace(/^www\./, "");
@@ -122,7 +99,6 @@ function elapsedLabel(ts) {
   const date = new Date(ts);
   const ms = Date.now() - date.getTime();
   if (!Number.isFinite(ms) || ms < 0) return formatTimestamp(ts);
-
   const m = Math.floor(ms / 60000);
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
@@ -134,7 +110,7 @@ function elapsedLabel(ts) {
 function truncateChars(text, max = 90) {
   const value = String(text || "").trim();
   if (value.length <= max) return value;
-  return `${value.slice(0, max - 1).trim()}â€¦`;
+  return `${value.slice(0, max - 1).trim()}...`;
 }
 
 function badge(label, className = "") {
@@ -151,19 +127,12 @@ function parsePublishedAt(item) {
 }
 
 function toBriefDocument(item) {
-  const regionKey = normalizeRegionToKey(item.region);
-  const tags = parseListField(item.tags, 12);
-  const points = parseListField(item.key_points || item.points, 12);
-  const indicators = parseListField(item.indicators, 12);
-  const sources = parseSources(item.sources);
-  const publishTo = parseListField(item.publish_to, 8).map(v => v.toLowerCase());
-  const subtype = String(item.brief_subtype || "").toLowerCase();
-
+  const regionKey = normalizeRegionToKey(item.region || item.brief_subtype);
   return {
     id: item.id,
     title: item.title || "Untitled",
     briefType: String(item.brief_type || "").toLowerCase(),
-    briefSubtype: subtype,
+    briefSubtype: String(item.brief_subtype || "").toLowerCase(),
     status: normalizeStatus(item.status),
     confidence: normalizeConfidence(item.confidence),
     impact: normalizeImpact(item.impact_level),
@@ -172,34 +141,28 @@ function toBriefDocument(item) {
     regionKey,
     regionLabel: regionLabelByKey(regionKey),
     category: normalizeCategory(item.category),
-    tags,
+    tags: parseListField(item.tags, 12),
     summary: item.summary || "",
     whyItMatters: item.why_it_matters || "",
-    details: item.details || "",
-    keyPoints: points,
-    indicators,
-    sources,
-    publishTo,
+    details: item.details || item.body || "",
+    keyPoints: parseListField(item.key_points || item.points, 20),
+    indicators: parseListField(item.indicators, 20),
+    sources: parseSources(item.sources),
     updatedAt: parsePublishedAt(item),
     raw: item
   };
 }
 
 function toEventBrief(item) {
-  const coords = Array.isArray(item.coords) && item.coords.length === 2
-    ? [Number(item.coords[0]), Number(item.coords[1])]
-    : null;
+  const coords = Array.isArray(item.coords) && item.coords.length === 2 ? [Number(item.coords[0]), Number(item.coords[1])] : null;
   const lng = item.lng != null ? Number(item.lng) : (item.long != null ? Number(item.long) : (coords ? coords[0] : null));
   const lat = item.lat != null ? Number(item.lat) : (coords ? coords[1] : null);
-
   const sources = parseSources(item.sources || item.source || item.source_links);
-  const timestamp = item.published_at || item.timestamp || item.created_at;
-
   return {
     id: item.id,
     title: item.title || "Untitled",
     canonicalUrl: item.canonical_url || "",
-    timestamp,
+    timestamp: item.published_at || item.timestamp || item.created_at,
     regionKey: normalizeRegionToKey(item.region),
     regionLabel: item.region || regionLabelByKey(normalizeRegionToKey(item.region)),
     category: normalizeCategory(item.category || item.type),
@@ -224,10 +187,7 @@ function toEventBrief(item) {
 }
 
 function eventCanonicalKey(event) {
-  if (event.canonicalUrl) {
-    return `url:${String(event.canonicalUrl).trim().toLowerCase()}`;
-  }
-
+  if (event.canonicalUrl) return `url:${String(event.canonicalUrl).trim().toLowerCase()}`;
   const dayBucket = event.timestamp ? new Date(event.timestamp).toISOString().slice(0, 10) : "unknown-day";
   const title = String(event.title || "").trim().toLowerCase().replace(/\s+/g, " ");
   const domain = sourceDomain(event.topSource || event.sources[0] || "unknown");
@@ -236,12 +196,10 @@ function eventCanonicalKey(event) {
 
 function dedupeEventBriefs(rows) {
   const map = new Map();
-
   rows.forEach(item => {
     const event = toEventBrief(item);
     const key = eventCanonicalKey(event);
     const existing = map.get(key);
-
     if (!existing) {
       map.set(key, event);
       return;
@@ -252,22 +210,9 @@ function dedupeEventBriefs(rows) {
       .filter(Boolean)
       .filter((v, i, arr) => arr.findIndex(x => x.toLowerCase() === v.toLowerCase()) === i);
 
-    const priority =
-      PRIORITY_ORDER[event.priority] > PRIORITY_ORDER[existing.priority] ? event.priority : existing.priority;
-
-    const impact =
-      IMPACT_ORDER[event.impact] > IMPACT_ORDER[existing.impact] ? event.impact : existing.impact;
-
-    const risk =
-      RISK_ORDER[event.risk] > RISK_ORDER[existing.risk] ? event.risk : existing.risk;
-
-    const newestTimestamp = new Date(event.timestamp || 0).getTime() > new Date(existing.timestamp || 0).getTime()
-      ? event.timestamp
-      : existing.timestamp;
-
     map.set(key, {
       ...existing,
-      timestamp: newestTimestamp,
+      timestamp: new Date(event.timestamp || 0).getTime() > new Date(existing.timestamp || 0).getTime() ? event.timestamp : existing.timestamp,
       summary: existing.summary.length >= event.summary.length ? existing.summary : event.summary,
       whyItMatters: existing.whyItMatters.length >= event.whyItMatters.length ? existing.whyItMatters : event.whyItMatters,
       assessment: existing.assessment.length >= event.assessment.length ? existing.assessment : event.assessment,
@@ -275,13 +220,28 @@ function dedupeEventBriefs(rows) {
       indicators: [...existing.indicators, ...event.indicators].filter((v, i, arr) => arr.indexOf(v) === i).slice(0, 12),
       sources: mergedSources,
       topSource: topSourceLabel(mergedSources),
-      priority,
-      impact,
-      risk
+      priority: PRIORITY_ORDER[event.priority] > PRIORITY_ORDER[existing.priority] ? event.priority : existing.priority,
+      impact: IMPACT_ORDER[event.impact] > IMPACT_ORDER[existing.impact] ? event.impact : existing.impact,
+      risk: RISK_ORDER[event.risk] > RISK_ORDER[existing.risk] ? event.risk : existing.risk
     });
   });
-
   return [...map.values()];
+}
+
+async function fetchBriefDocumentPins(briefId) {
+  if (!supabase || !briefId) return [];
+  const { data, error } = await supabase
+    .from("brief_document_pins")
+    .select("*")
+    .eq("brief_id", briefId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Failed to fetch brief pins:", error);
+    return [];
+  }
+
+  return data || [];
 }
 
 async function loadData() {
@@ -293,7 +253,10 @@ async function loadData() {
 
     briefDocumentsData = docRows
       .map(toBriefDocument)
-      .filter(item => item.publishTo.includes("briefing_room"));
+      .filter(item => {
+        const publishTo = parseListField(item.raw.publish_to, 8).map(v => v.toLowerCase());
+        return publishTo.includes("briefing_room");
+      });
 
     eventBriefsData = dedupeEventBriefs(eventRows);
   } catch (err) {
@@ -312,42 +275,19 @@ function withinTimeWindow(timestamp, windowKey) {
 
 function matchesTopic(category, topic) {
   if (topic === "all") return true;
-  if (topic === "grey_space") {
-    return category === "grey_space" || category === "greyspace";
-  }
+  if (topic === "grey_space") return category === "grey_space" || category === "greyspace";
   return category === topic;
 }
 
 function matchesSearchDocument(doc, search) {
   if (!search) return true;
-  const haystack = [
-    doc.title,
-    doc.summary,
-    doc.whyItMatters,
-    doc.details,
-    doc.regionLabel,
-    doc.category,
-    ...doc.tags,
-    ...doc.keyPoints,
-    ...doc.indicators
-  ].join(" ").toLowerCase();
+  const haystack = [doc.title, doc.summary, doc.whyItMatters, doc.details, doc.regionLabel, doc.category, ...doc.tags, ...doc.keyPoints, ...doc.indicators].join(" ").toLowerCase();
   return haystack.includes(search);
 }
 
 function matchesSearchEvent(event, search) {
   if (!search) return true;
-  const haystack = [
-    event.title,
-    event.summary,
-    event.whyItMatters,
-    event.assessment,
-    event.regionLabel,
-    event.category,
-    event.topSource,
-    ...event.tags,
-    ...event.points,
-    ...event.indicators
-  ].join(" ").toLowerCase();
+  const haystack = [event.title, event.summary, event.whyItMatters, event.assessment, event.regionLabel, event.category, event.topSource, ...event.tags, ...event.points, ...event.indicators].join(" ").toLowerCase();
   return haystack.includes(search);
 }
 
@@ -356,12 +296,10 @@ function sortItems(items, sort, type) {
     items.sort((a, b) => IMPACT_ORDER[b.impact] - IMPACT_ORDER[a.impact]);
     return;
   }
-
   if (sort === "priority") {
     items.sort((a, b) => PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority]);
     return;
   }
-
   items.sort((a, b) => {
     const aTs = new Date((type === "doc" ? a.updatedAt : a.timestamp) || 0).getTime();
     const bTs = new Date((type === "doc" ? b.updatedAt : b.timestamp) || 0).getTime();
@@ -373,13 +311,12 @@ function filterDocs() {
   const search = filterState.search.toLowerCase();
   const filtered = briefDocumentsData.filter(doc => {
     if (doc.briefType !== filterState.docType) return false;
-    if (filterState.region && doc.regionKey !== filterState.region) return false;
+    if (filterState.region && normalizeRegionToKey(doc.regionKey) !== normalizeRegionToKey(filterState.region)) return false;
     if (!matchesTopic(doc.category, filterState.topic)) return false;
     if (!withinTimeWindow(doc.updatedAt, filterState.timeWindow)) return false;
     if (!matchesSearchDocument(doc, search)) return false;
     return true;
   });
-
   sortItems(filtered, filterState.sort, "doc");
   return filtered;
 }
@@ -387,13 +324,12 @@ function filterDocs() {
 function filterEvents() {
   const search = filterState.search.toLowerCase();
   const filtered = eventBriefsData.filter(item => {
-    if (filterState.region && item.regionKey !== filterState.region) return false;
+    if (filterState.region && normalizeRegionToKey(item.regionKey) !== normalizeRegionToKey(filterState.region)) return false;
     if (!matchesTopic(item.category, filterState.topic)) return false;
     if (!withinTimeWindow(item.timestamp, filterState.timeWindow)) return false;
     if (!matchesSearchEvent(item, search)) return false;
     return true;
   });
-
   sortItems(filtered, filterState.sort, "event");
   return filtered;
 }
@@ -401,7 +337,6 @@ function filterEvents() {
 function renderDocumentGrid() {
   const docs = filterDocs();
   briefDocGrid.innerHTML = "";
-
   if (!docs.length) {
     briefDocGrid.innerHTML = `<div class="empty-state">No brief documents match current filters.</div>`;
     return;
@@ -410,15 +345,8 @@ function renderDocumentGrid() {
   docs.forEach(doc => {
     const card = document.createElement("article");
     card.className = "brief-doc-card";
-
-    const bullets = doc.keyPoints.slice(0, 3)
-      .map(p => `<li class="line-clamp-1">${truncateChars(p, 90)}</li>`)
-      .join("");
-
-    const tags = doc.tags.slice(0, 3)
-      .map(t => `<span class="tag-chip">${t}</span>`)
-      .join("");
-
+    const bullets = doc.keyPoints.slice(0, 3).map(p => `<li class="line-clamp-1">${truncateChars(p, 90)}</li>`).join("");
+    const tags = doc.tags.slice(0, 3).map(t => `<span class="tag-chip">${t}</span>`).join("");
     card.innerHTML = `
       <h3 class="card-title line-clamp-2">${doc.title}</h3>
       <div class="card-meta">
@@ -429,7 +357,6 @@ function renderDocumentGrid() {
       <ul class="card-list">${bullets || "<li class='line-clamp-1'>No key points.</li>"}</ul>
       <div class="tag-row">${tags}</div>
     `;
-
     card.addEventListener("click", () => openDocumentModal(doc));
     briefDocGrid.appendChild(card);
   });
@@ -438,7 +365,6 @@ function renderDocumentGrid() {
 function renderEventFeed() {
   const events = filterEvents();
   eventBriefGrid.innerHTML = "";
-
   if (!events.length) {
     eventBriefGrid.innerHTML = `<div class="empty-state">No event briefs match current filters.</div>`;
     return;
@@ -447,16 +373,10 @@ function renderEventFeed() {
   events.forEach(item => {
     const card = document.createElement("article");
     card.className = "event-brief-card";
-
-    const tags = [...item.tags, item.regionLabel, item.category]
-      .filter(Boolean)
-      .slice(0, 3)
-      .map(t => `<span class="tag-chip">${t}</span>`)
-      .join("");
-
+    const tags = [...item.tags, item.regionLabel, item.category].filter(Boolean).slice(0, 3).map(t => `<span class="tag-chip">${t}</span>`).join("");
     card.innerHTML = `
       <h3 class="card-title line-clamp-2">${item.title}</h3>
-      <div class="card-meta line-clamp-1">${formatTimestamp(item.timestamp)} â€¢ ${item.regionLabel || "--"} â€¢ ${item.category || "--"} â€¢ ${item.topSource}</div>
+      <div class="card-meta line-clamp-1">${formatTimestamp(item.timestamp)} • ${item.regionLabel || "--"} • ${item.category || "--"} • ${item.topSource}</div>
       <p class="why-line line-clamp-1">${item.whyItMatters || item.summary || "No why-it-matters provided."}</p>
       <div class="tag-row">${tags}</div>
       <div class="badge-row">
@@ -465,7 +385,6 @@ function renderEventFeed() {
         ${badge(`priority ${item.priority}`, `badge-priority-${item.priority}`)}
       </div>
     `;
-
     card.addEventListener("click", () => openEventModal(item));
     eventBriefGrid.appendChild(card);
   });
@@ -482,19 +401,243 @@ function dedupeDisplaySources(sources) {
   return unique;
 }
 
-function openDocumentModal(doc) {
-  const sourceItems = dedupeDisplaySources(doc.sources)
-    .map(s => `<li>${s}</li>`)
-    .join("");
+function coverageLabelForDoc(doc) {
+  if (doc.briefType === "scheduled") {
+    if (doc.briefSubtype === "morning" || doc.briefSubtype === "evening") return "last 12h";
+    if (doc.briefSubtype === "daily") return "last 24h";
+    if (doc.briefSubtype === "weekly") return "last 7d";
+    if (doc.briefSubtype === "monthly") return "last 30d";
+  }
+  if (doc.briefType === "regional") return "last 72h";
+  return "mixed window";
+}
+
+function titleBlockForDoc(doc) {
+  const subtypeLabel = doc.briefSubtype.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+  if (doc.briefType === "scheduled") {
+    return { headline: `${subtypeLabel} Brief`, typeChip: "SCHEDULED", secondary: doc.title };
+  }
+  if (doc.briefType === "regional") {
+    return { headline: `${regionLabelByKey(doc.briefSubtype)} Briefing`, typeChip: "REGIONAL", secondary: doc.title };
+  }
+  return { headline: doc.title, typeChip: "SPECIAL", secondary: "" };
+}
+
+function pinFeatureFromRow(pin) {
+  const lng = Number(pin.longitude);
+  const lat = Number(pin.latitude);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+  return {
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [lng, lat] },
+    properties: {
+      id: pin.id,
+      label: pin.label || "Hotspot",
+      region: pin.region || "",
+      category: pin.category || "",
+      risk_level: normalizeRisk(pin.risk_level || "medium"),
+      event_id: pin.event_id || "",
+      created_at: pin.created_at || ""
+    }
+  };
+}
+
+function popupHtmlForPin(properties) {
+  const risk = normalizeRisk(properties.risk_level || "medium");
+  const eventBtn = properties.event_id ? `<button class="pin-open-event" data-event-id="${properties.event_id}">Open event</button>` : "";
+  return `
+    <div class="pin-popup">
+      <div class="pin-popup__title">${properties.label || "Hotspot"}</div>
+      <div class="pin-popup__meta">${properties.region || "--"} • ${properties.category || "--"}</div>
+      <div class="pin-popup__badges"><span class="badge badge-risk-${risk}">risk ${risk}</span></div>
+      ${eventBtn}
+    </div>
+  `;
+}
+
+function applyInitialDocMapView(map, doc, features, didInitView) {
+  if (didInitView.value) return;
+  didInitView.value = true;
+
+  if (doc.briefType === "regional") {
+    const key = normalizeRegionToKey(doc.briefSubtype);
+    const frame = (window.REGION_FRAMES && window.REGION_FRAMES[key]) || window.REGION_FRAMES.global;
+    if (frame?.bounds) {
+      map.fitBounds(frame.bounds, { padding: 40, duration: 0 });
+    } else if (frame) {
+      map.setCenter(frame.center);
+      map.setZoom(frame.zoom);
+    }
+    return;
+  }
+
+  if (features.length) {
+    const bounds = new mapboxgl.LngLatBounds();
+    features.forEach(f => bounds.extend(f.geometry.coordinates));
+    map.fitBounds(bounds, { padding: 50, duration: 0 });
+    return;
+  }
+
+  const globalFrame = window.REGION_FRAMES?.global || { center: [0, 20], zoom: 1.2 };
+  map.setCenter(globalFrame.center);
+  map.setZoom(globalFrame.zoom);
+}
+
+function renderHotspotsList(features) {
+  const container = document.getElementById("doc-hotspots");
+  if (!container) return;
+
+  const sorted = [...features]
+    .sort((a, b) => {
+      const riskDiff = RISK_ORDER[normalizeRisk(b.properties.risk_level)] - RISK_ORDER[normalizeRisk(a.properties.risk_level)];
+      if (riskDiff !== 0) return riskDiff;
+      return new Date(b.properties.created_at || 0).getTime() - new Date(a.properties.created_at || 0).getTime();
+    })
+    .slice(0, 5);
+
+  if (!sorted.length) {
+    container.innerHTML = `<div class="empty-state">No hotspots pinned for this brief.</div>`;
+    return;
+  }
+
+  container.innerHTML = sorted.map((f, idx) => `
+    <button class="hotspot-item" data-pin-id="${f.properties.id}">
+      <span class="hotspot-item__idx">${idx + 1}</span>
+      <span class="hotspot-item__body">
+        <span class="hotspot-item__label">${f.properties.label || "Hotspot"}</span>
+        <span class="hotspot-item__meta">${f.properties.region || "--"} • ${f.properties.category || "--"}</span>
+      </span>
+      <span class="badge badge-risk-${normalizeRisk(f.properties.risk_level)}">${normalizeRisk(f.properties.risk_level)}</span>
+    </button>
+  `).join("");
+}
+
+function bindModalDynamicActions(map) {
+  modalContent.querySelectorAll(".pin-open-event").forEach(btn => {
+    btn.addEventListener("click", e => {
+      const eventId = e.currentTarget.getAttribute("data-event-id");
+      if (!eventId) return;
+      window.location.href = `Live.html?event=${eventId}`;
+    });
+  });
+
+  modalContent.querySelectorAll(".hotspot-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-pin-id");
+      const feature = activeDocPinFeatures.find(f => String(f.properties.id) === String(id));
+      if (!feature || !map) return;
+      const [lng, lat] = feature.geometry.coordinates;
+      map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 4.8), duration: 400 });
+      new mapboxgl.Popup({ offset: 12 })
+        .setLngLat([lng, lat])
+        .setHTML(popupHtmlForPin(feature.properties))
+        .addTo(map);
+    });
+  });
+}
+
+function mountDocMap(doc, pins) {
+  const mapEl = document.getElementById("doc-brief-map");
+  if (!mapEl || typeof mapboxgl === "undefined" || !MAPBOX_TOKEN) return;
+
+  mapboxgl.accessToken = MAPBOX_TOKEN;
+  if (briefingModalMap) {
+    briefingModalMap.remove();
+    briefingModalMap = null;
+  }
+
+  const didInitView = { value: false };
+  const features = pins.map(pinFeatureFromRow).filter(Boolean);
+  activeDocPinFeatures = features;
+
+  briefingModalMap = new mapboxgl.Map({
+    container: "doc-brief-map",
+    style: "mapbox://styles/mapbox/dark-v11",
+    center: [0, 20],
+    zoom: 1.2
+  });
+
+  briefingModalMap.on("load", () => {
+    briefingModalMap.addSource("doc-pins", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features },
+      cluster: true,
+      clusterMaxZoom: 8,
+      clusterRadius: 45
+    });
+
+    briefingModalMap.addLayer({
+      id: "doc-pin-clusters",
+      type: "circle",
+      source: "doc-pins",
+      filter: ["has", "point_count"],
+      paint: { "circle-color": "#3b82f6", "circle-radius": ["step", ["get", "point_count"], 16, 10, 19, 30, 24], "circle-opacity": 0.84 }
+    });
+
+    briefingModalMap.addLayer({
+      id: "doc-pin-cluster-count",
+      type: "symbol",
+      source: "doc-pins",
+      filter: ["has", "point_count"],
+      layout: { "text-field": "{point_count_abbreviated}", "text-size": 12 },
+      paint: { "text-color": "#ffffff" }
+    });
+
+    briefingModalMap.addLayer({
+      id: "doc-pin-unclustered",
+      type: "circle",
+      source: "doc-pins",
+      filter: ["!", ["has", "point_count"]],
+      paint: { "circle-color": "#f97316", "circle-radius": 7, "circle-stroke-width": 1.5, "circle-stroke-color": "#ffffff" }
+    });
+
+    briefingModalMap.on("click", "doc-pin-clusters", e => {
+      const cluster = briefingModalMap.queryRenderedFeatures(e.point, { layers: ["doc-pin-clusters"] })[0];
+      if (!cluster) return;
+      const clusterId = cluster.properties.cluster_id;
+      briefingModalMap.getSource("doc-pins").getClusterExpansionZoom(clusterId, (err, zoom) => {
+        if (err) return;
+        briefingModalMap.easeTo({ center: cluster.geometry.coordinates, zoom });
+      });
+    });
+
+    briefingModalMap.on("click", "doc-pin-unclustered", e => {
+      const feature = e.features && e.features[0];
+      if (!feature) return;
+      new mapboxgl.Popup({ offset: 12 })
+        .setLngLat(feature.geometry.coordinates)
+        .setHTML(popupHtmlForPin(feature.properties))
+        .addTo(briefingModalMap);
+      bindModalDynamicActions(briefingModalMap);
+    });
+
+    briefingModalMap.on("mouseenter", "doc-pin-clusters", () => {
+      briefingModalMap.getCanvas().style.cursor = "pointer";
+    });
+    briefingModalMap.on("mouseleave", "doc-pin-clusters", () => {
+      briefingModalMap.getCanvas().style.cursor = "";
+    });
+    briefingModalMap.on("mouseenter", "doc-pin-unclustered", () => {
+      briefingModalMap.getCanvas().style.cursor = "pointer";
+    });
+    briefingModalMap.on("mouseleave", "doc-pin-unclustered", () => {
+      briefingModalMap.getCanvas().style.cursor = "";
+    });
+
+    applyInitialDocMapView(briefingModalMap, doc, features, didInitView);
+  });
+}
+
+async function openDocumentModal(doc) {
+  const titleBlock = titleBlockForDoc(doc);
 
   modalContent.innerHTML = `
     <div class="detail-header">
-      <h3>${doc.title}</h3>
-      <div class="detail-meta">
-        <span>${formatTimestamp(doc.updatedAt)}</span>
-        <span>${doc.regionLabel || "--"}</span>
-        <span>${doc.category || "--"}</span>
-      </div>
+      <div class="detail-type-chip">${titleBlock.typeChip}</div>
+      <h2 class="detail-headline">${titleBlock.headline}</h2>
+      ${titleBlock.secondary ? `<div class="detail-secondary line-clamp-2">${titleBlock.secondary}</div>` : ""}
+      <div class="detail-subheader" id="doc-subheader">${formatTimestamp(doc.updatedAt)} • Coverage: ${coverageLabelForDoc(doc)} • Pins: ...</div>
       <div class="detail-badges">
         ${badge(`risk ${doc.risk}`, `badge-risk-${doc.risk}`)}
         ${badge(`impact ${doc.impact}`, `badge-impact-${doc.impact}`)}
@@ -503,6 +646,17 @@ function openDocumentModal(doc) {
         ${badge(`status ${doc.status}`)}
       </div>
     </div>
+
+    <section class="detail-section detail-map-grid">
+      <div class="detail-map-panel">
+        <div id="doc-brief-map" class="detail-map"></div>
+      </div>
+      <div class="detail-hotspots-panel">
+        <h4>Hotspots</h4>
+        <div id="doc-hotspots"></div>
+      </div>
+    </section>
+
     <section class="detail-section">
       <h4>Executive Summary</h4>
       <p class="line-clamp-5">${doc.summary || "No summary provided."}</p>
@@ -521,22 +675,28 @@ function openDocumentModal(doc) {
     </section>
     <section class="detail-section">
       <h4>Sources</h4>
-      <ul>${sourceItems || "<li>No sources listed.</li>"}</ul>
+      <div class="tag-row">${dedupeDisplaySources(doc.sources).map(s => `<span class="tag-chip">${s}</span>`).join("") || "<span>No sources listed.</span>"}</div>
     </section>
     <section class="detail-section">
       <h4>Metadata</h4>
-      <p>Region: ${doc.regionLabel || "--"} | Category: ${doc.category || "--"} | Publish To: ${(doc.publishTo || []).join(", ") || "--"}</p>
+      <p>Region: ${doc.regionLabel || "--"} | Category: ${doc.category || "--"} | Type: ${titleBlock.typeChip}${doc.briefSubtype ? ` (${doc.briefSubtype})` : ""}</p>
     </section>
   `;
 
   openModal();
+
+  const pins = await fetchBriefDocumentPins(doc.id);
+  document.getElementById("doc-subheader").textContent =
+    `${formatTimestamp(doc.updatedAt)} • Coverage: ${coverageLabelForDoc(doc)} • Pins: ${pins.length}`;
+
+  const features = pins.map(pinFeatureFromRow).filter(Boolean);
+  renderHotspotsList(features);
+  mountDocMap(doc, pins);
+  bindModalDynamicActions(briefingModalMap);
 }
 
 function openEventModal(event) {
-  const sourceItems = dedupeDisplaySources(event.sources)
-    .map(s => `<li>${s}</li>`)
-    .join("");
-
+  const sourceItems = dedupeDisplaySources(event.sources).map(s => `<li>${s}</li>`).join("");
   const hasMap = Number.isFinite(event.lat) && Number.isFinite(event.lng);
   const mapBlock = hasMap ? `<section class="detail-section"><h4>Map</h4><div id="event-detail-map" class="detail-map"></div></section>` : "";
 
@@ -557,26 +717,11 @@ function openEventModal(event) {
         ${badge(`status ${event.status}`)}
       </div>
     </div>
-    <section class="detail-section">
-      <h4>Why It Matters</h4>
-      <p>${(event.whyItMatters || "No why-it-matters provided.").replace(/\n/g, "<br>")}</p>
-    </section>
-    <section class="detail-section">
-      <h4>Assessment</h4>
-      <p>${(event.assessment || "No assessment provided.").replace(/\n/g, "<br>")}</p>
-    </section>
-    <section class="detail-section">
-      <h4>Key Points</h4>
-      <ul>${event.points.map(p => `<li>${p}</li>`).join("") || "<li>No key points listed.</li>"}</ul>
-    </section>
-    <section class="detail-section">
-      <h4>Indicators to Watch</h4>
-      <ul>${event.indicators.map(p => `<li>${p}</li>`).join("") || "<li>No indicators listed.</li>"}</ul>
-    </section>
-    <section class="detail-section">
-      <h4>Sources</h4>
-      <ul>${sourceItems || "<li>No sources listed.</li>"}</ul>
-    </section>
+    <section class="detail-section"><h4>Why It Matters</h4><p>${(event.whyItMatters || "No why-it-matters provided.").replace(/\n/g, "<br>")}</p></section>
+    <section class="detail-section"><h4>Assessment</h4><p>${(event.assessment || "No assessment provided.").replace(/\n/g, "<br>")}</p></section>
+    <section class="detail-section"><h4>Key Points</h4><ul>${event.points.map(p => `<li>${p}</li>`).join("") || "<li>No key points listed.</li>"}</ul></section>
+    <section class="detail-section"><h4>Indicators to Watch</h4><ul>${event.indicators.map(p => `<li>${p}</li>`).join("") || "<li>No indicators listed.</li>"}</ul></section>
+    <section class="detail-section"><h4>Sources</h4><ul>${sourceItems || "<li>No sources listed.</li>"}</ul></section>
     ${mapBlock}
   `;
 
@@ -584,10 +729,7 @@ function openEventModal(event) {
 
   if (hasMap && typeof mapboxgl !== "undefined" && MAPBOX_TOKEN) {
     mapboxgl.accessToken = MAPBOX_TOKEN;
-    if (briefingModalMap) {
-      briefingModalMap.remove();
-      briefingModalMap = null;
-    }
+    if (briefingModalMap) briefingModalMap.remove();
     setTimeout(() => {
       briefingModalMap = new mapboxgl.Map({
         container: "event-detail-map",
@@ -634,12 +776,10 @@ function setupFilters() {
     filterState.search = e.target.value.trim();
     renderAll();
   });
-
   document.getElementById("brf-region-filter").addEventListener("change", e => {
     filterState.region = e.target.value;
     renderAll();
   });
-
   document.getElementById("brf-sort").addEventListener("change", e => {
     filterState.sort = e.target.value;
     renderAll();
@@ -667,9 +807,7 @@ function setupFilters() {
   docTabs.querySelectorAll("button").forEach(btn => {
     btn.addEventListener("click", () => {
       filterState.docType = btn.dataset.docType;
-      docTabs.querySelectorAll("button").forEach(node =>
-        node.classList.toggle("segmented-control__btn--active", node === btn)
-      );
+      docTabs.querySelectorAll("button").forEach(node => node.classList.toggle("segmented-control__btn--active", node === btn));
       renderDocumentGrid();
     });
   });
@@ -682,9 +820,7 @@ function setupModalClose() {
   });
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && modal.classList.contains("brf-modal--open")) {
-      closeModal();
-    }
+    if (e.key === "Escape" && modal.classList.contains("brf-modal--open")) closeModal();
   });
 }
 
