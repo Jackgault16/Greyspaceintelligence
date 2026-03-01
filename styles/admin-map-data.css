@@ -1,0 +1,160 @@
+.map-admin-page {
+    max-width: 1260px;
+    margin: 12px auto 28px;
+    padding: 0 12px;
+}
+
+.map-admin-login,
+.map-admin-app .panel {
+    border: 1px solid #1f2535;
+    border-radius: 10px;
+    background: #0b0f16;
+    padding: 14px;
+}
+
+.map-admin-login {
+    max-width: 380px;
+}
+
+.map-admin-login label,
+.panel label {
+    display: block;
+    margin: 8px 0 4px;
+    font-size: 0.78rem;
+    opacity: 0.8;
+}
+
+.map-admin-login input,
+.map-admin-login button,
+.panel input,
+.panel select,
+.panel textarea,
+.panel button {
+    width: 100%;
+    box-sizing: border-box;
+    background: #06090f;
+    color: #fff;
+    border: 1px solid #273248;
+    border-radius: 7px;
+    padding: 8px 10px;
+}
+
+.panel textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.map-admin-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.tabs {
+    display: inline-flex;
+    border: 1px solid #2a3348;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.tabs button {
+    border: none;
+    background: #0f1522;
+    color: #d2dbec;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.tabs button.active {
+    background: #1a2a4a;
+    color: #fff;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 12px;
+}
+
+.list {
+    margin-top: 8px;
+    max-height: 520px;
+    overflow-y: auto;
+    display: grid;
+    gap: 8px;
+}
+
+.list-item {
+    border: 1px solid #243149;
+    border-radius: 8px;
+    padding: 8px;
+    background: #0a111d;
+    cursor: pointer;
+}
+
+.list-item.active {
+    border-color: #5d7bb4;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.actions button.secondary {
+    background: transparent;
+}
+
+.actions button.danger {
+    border-color: #a84242;
+    color: #f28f8f;
+}
+
+.poi-map {
+    width: 100%;
+    height: 240px;
+    border: 1px solid #273248;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+details {
+    border: 1px solid #1f2535;
+    border-radius: 8px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+summary {
+    padding: 8px 10px;
+    cursor: pointer;
+    background: #101826;
+    text-transform: uppercase;
+    font-size: 0.73rem;
+    letter-spacing: 0.08em;
+}
+
+.detail-body {
+    padding: 8px;
+}
+
+.note {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    opacity: 0.75;
+}
+
+@media (max-width: 960px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}

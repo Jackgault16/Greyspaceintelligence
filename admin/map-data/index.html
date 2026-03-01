@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grey Space - Admin Map Data</title>
+    <link rel="stylesheet" href="../../styles/main.css">
+    <link rel="stylesheet" href="../../styles/admin-map-data.css">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="menu-button" id="menuButton">
+        <div class="menu-line"></div>
+        <div class="menu-line"></div>
+        <div class="menu-line"></div>
+    </div>
+
+    <div class="side-menu" id="sideMenu">
+        <div class="close-menu" id="closeMenu">X</div>
+        <h3>MENU</h3>
+        <ul>
+            <li onclick="window.location.href='../../index.html'">Home</li>
+            <li onclick="window.location.href='../../Admin.html'">Admin Hub</li>
+            <li onclick="window.location.href='../../map.html'">Map</li>
+        </ul>
+    </div>
+    <div class="menu-overlay" id="menuOverlay"></div>
+
+    <header class="title-header"><h1>GREY SPACE</h1></header>
+    <nav class="navbar">
+        <ul class="nav-links">
+            <li onclick="window.location.href='../../index.html'">HOME</li>
+            <li onclick="window.location.href='../../Admin.html'">ADMIN HUB</li>
+            <li class="active">MAP DATA</li>
+        </ul>
+    </nav>
+
+    <main class="map-admin-page">
+        <section id="mapAdminLogin" class="map-admin-login">
+            <h2>Map Data Admin</h2>
+            <label>Email</label>
+            <input id="mapAdminEmail" type="email" placeholder="you@example.com" />
+            <label>Password</label>
+            <input id="mapAdminPassword" type="password" placeholder="********" />
+            <button id="mapAdminLoginBtn">Sign In</button>
+            <div id="mapAdminLoginStatus" class="note"></div>
+        </section>
+
+        <section id="mapAdminApp" class="map-admin-app" style="display:none;">
+            <div class="map-admin-head">
+                <h2>Map Data Editor</h2>
+                <div><span id="mapAdminUser"></span> • <a href="#" id="mapAdminLogout">Sign out</a></div>
+            </div>
+
+            <div class="tabs" id="mapAdminTabs">
+                <button data-tab="countries" class="active">Countries</button>
+                <button data-tab="profiles">Country Profiles + POIs</button>
+            </div>
+
+            <div class="grid">
+                <aside class="panel">
+                    <input id="countrySearch" type="text" placeholder="Search country name or ISO2..." />
+                    <div id="countryList" class="list"></div>
+                </aside>
+
+                <section class="panel">
+                    <div id="countriesEditor">
+                        <h3>Country Details</h3>
+                        <div class="row">
+                            <div><label>ISO2</label><input id="countryIso2" type="text" maxlength="2"></div>
+                            <div><label>ISO3</label><input id="countryIso3" type="text" maxlength="3"></div>
+                        </div>
+                        <label>Name</label><input id="countryName" type="text">
+                        <div class="row">
+                            <div><label>Region</label><input id="countryRegion" type="text"></div>
+                            <div><label>Capital</label><input id="countryCapital" type="text"></div>
+                        </div>
+                        <label>Centroid [lng,lat]</label><input id="countryCentroid" type="text" placeholder="12.4, 41.9">
+                        <label>BBox [west,south,east,north]</label><input id="countryBbox" type="text" placeholder="-10, 35, 30, 72">
+                        <div class="actions">
+                            <button id="saveCountryBtn">Save Country</button>
+                        </div>
+                    </div>
+
+                    <div id="profilesEditor" style="display:none;">
+                        <h3>Country Profile + POIs</h3>
+                        <div class="row">
+                            <div>
+                                <label>ISO2</label>
+                                <input id="profileIso2" type="text" maxlength="2">
+                            </div>
+                            <div>
+                                <label>Category</label>
+                                <select id="profileCategory">
+                                    <option value="political">Political</option>
+                                    <option value="military">Military</option>
+                                    <option value="economic">Economic</option>
+                                    <option value="social">Social</option>
+                                    <option value="greyspace">Grey Space</option>
+                                </select>
+                            </div>
+                        </div>
+                        <details open>
+                            <summary>Profile</summary>
+                            <div class="detail-body">
+                                <label>Metrics JSON</label>
+                                <textarea id="profileMetrics" placeholder='{"gdp":"$2.1T","stability":"moderate"}'></textarea>
+                                <label>Narrative</label>
+                                <textarea id="profileNarrativeEdit"></textarea>
+                                <label>Sources (comma-separated)</label>
+                                <input id="profileSourcesEdit" type="text">
+                                <div class="actions">
+                                    <button id="saveProfileBtn">Save Profile</button>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details open>
+                            <summary>POIs</summary>
+                            <div class="detail-body">
+                                <div id="poiMap" class="poi-map"></div>
+                                <div class="note">Click map to set location for a new POI.</div>
+                                <div class="row">
+                                    <div><label>POI Type</label><input id="poiType" type="text"></div>
+                                    <div><label>Name</label><input id="poiName" type="text"></div>
+                                </div>
+                                <div class="row">
+                                    <div><label>Latitude</label><input id="poiLat" type="number" step="0.000001"></div>
+                                    <div><label>Longitude</label><input id="poiLng" type="number" step="0.000001"></div>
+                                </div>
+                                <div class="row">
+                                    <div>
+                                        <label>Confidence</label>
+                                        <select id="poiConfidence">
+                                            <option value="low">low</option>
+                                            <option value="medium" selected>medium</option>
+                                            <option value="high">high</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <label>Notes</label><textarea id="poiNotes"></textarea>
+                                <label>Sources (comma-separated)</label><input id="poiSources" type="text">
+                                <div class="actions">
+                                    <button id="savePoiBtn">Save POI</button>
+                                    <button id="newPoiBtn" class="secondary">New POI</button>
+                                    <button id="deletePoiBtn" class="danger">Delete POI</button>
+                                </div>
+                                <div id="poiList" class="list"></div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div id="mapAdminStatus" class="note"></div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+    <script src="../../scripts/supabaseConfig.js"></script>
+    <script src="../../scripts/menu.js"></script>
+    <script src="../../scripts/admin-map-data.js"></script>
+</body>
+</html>

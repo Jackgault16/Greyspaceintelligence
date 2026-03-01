@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grey Space - Country Compendium Map</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/map.css">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet" />
+</head>
+<body class="map-page">
+    <div class="menu-button" id="menuButton">
+        <div class="menu-line"></div>
+        <div class="menu-line"></div>
+        <div class="menu-line"></div>
+    </div>
+
+    <div class="side-menu" id="sideMenu">
+        <div class="close-menu" id="closeMenu">X</div>
+        <h3>MENU</h3>
+        <ul>
+            <li onclick="window.location.href='index.html'">Home</li>
+            <li onclick="window.location.href='About.html'">About</li>
+            <li onclick="window.location.href='Live.html'">Live</li>
+            <li onclick="window.location.href='map.html'">Map</li>
+            <li onclick="window.location.href='Admin.html'">Admin</li>
+        </ul>
+    </div>
+    <div class="menu-overlay" id="menuOverlay"></div>
+
+    <header class="title-header">
+        <h1>GREY SPACE</h1>
+    </header>
+
+    <nav class="navbar">
+        <ul class="nav-links">
+            <li onclick="window.location.href='index.html'">HOME</li>
+            <li onclick="window.location.href='briefing-room.html'">BRIEFING ROOM</li>
+            <li onclick="window.location.href='Live.html'">LIVE</li>
+            <li class="active" onclick="window.location.href='map.html'">MAP</li>
+            <li>ANALYSIS CENTRE</li>
+        </ul>
+    </nav>
+
+    <main id="mapViewport" class="map-viewport">
+        <div id="countryMap" class="country-map"></div>
+
+        <aside id="dossierPanel" class="dossier-panel">
+            <div class="dossier-header">
+                <div class="dossier-country">
+                    <img id="dossierFlag" alt="" />
+                    <div>
+                        <h2 id="dossierCountryName">Country</h2>
+                        <div id="dossierCountryMeta" class="dossier-meta"></div>
+                    </div>
+                </div>
+                <button id="dossierClose" class="dossier-close" aria-label="Close dossier">X</button>
+            </div>
+
+            <div class="dossier-tabs" id="dossierTabs">
+                <button data-category="political" class="active">Political</button>
+                <button data-category="military">Military</button>
+                <button data-category="economic">Economic</button>
+                <button data-category="social">Social</button>
+                <button data-category="greyspace">Grey Space</button>
+            </div>
+
+            <div class="dossier-content" id="dossierContent">
+                <section class="dossier-section">
+                    <h3>Metrics</h3>
+                    <div id="metricsGrid" class="metrics-grid"></div>
+                </section>
+
+                <section class="dossier-section">
+                    <h3>Narrative</h3>
+                    <p id="profileNarrative" class="muted">No narrative available.</p>
+                </section>
+
+                <section class="dossier-section">
+                    <h3>Sources</h3>
+                    <div id="profileSources" class="chip-wrap"></div>
+                </section>
+
+                <section class="dossier-section">
+                    <h3>Overlay</h3>
+                    <div id="overlayLegend" class="muted">Political - 0 POIs</div>
+                    <div id="poiTypeLegend" class="chip-wrap"></div>
+                </section>
+
+                <section class="dossier-section">
+                    <h3>Live News</h3>
+                    <div id="relatedLive" class="compact-list"></div>
+                </section>
+
+                <section class="dossier-section">
+                    <h3>Brief Documents</h3>
+                    <div id="relatedBriefs" class="compact-list"></div>
+                </section>
+            </div>
+        </aside>
+    </main>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+    <script src="scripts/supabaseConfig.js"></script>
+    <script src="scripts/menu.js"></script>
+    <script src="scripts/Map.js"></script>
+</body>
+</html>
