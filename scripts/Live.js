@@ -2,6 +2,17 @@ const regionFilter = document.getElementById("regionFilter");
 const categoryFilter = document.getElementById("categoryFilter");
 const feed = document.getElementById("feed");
 
+function normalizeLiveHamburgerMenu() {
+    const sideMenu = document.getElementById("sideMenu");
+    const list = sideMenu ? sideMenu.querySelector("ul") : null;
+    if (!list) return;
+    list.innerHTML = `
+        <li onclick="window.location.href='index.html'">Home</li>
+        <li onclick="window.location.href='About.html'">About</li>
+        <li onclick="window.location.href='Admin.html'">Admin</li>
+    `;
+}
+
 function getFilterValues() {
     return {
         region: regionFilter.value.toLowerCase(),
@@ -133,4 +144,5 @@ regionFilter.addEventListener("change", renderIntel);
 categoryFilter.addEventListener("change", renderIntel);
 
 // Init
+normalizeLiveHamburgerMenu();
 renderIntel();
