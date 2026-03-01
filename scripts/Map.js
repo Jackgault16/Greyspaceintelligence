@@ -28,8 +28,21 @@ const cache = {
 
 const CATEGORY_KEYS = ["political", "military", "economic", "social", "greyspace"];
 
+normalizeMapHamburgerMenu();
+
 if (mapEl && typeof mapboxgl !== "undefined" && MAPBOX_TOKEN) {
     initCountryMap();
+}
+
+function normalizeMapHamburgerMenu() {
+    const sideMenu = document.getElementById("sideMenu");
+    const list = sideMenu ? sideMenu.querySelector("ul") : null;
+    if (!list) return;
+    list.innerHTML = `
+        <li onclick="window.location.href='index.html'">Home</li>
+        <li onclick="window.location.href='About.html'">About</li>
+        <li onclick="window.location.href='Admin.html'">Admin</li>
+    `;
 }
 
 function initCountryMap() {
