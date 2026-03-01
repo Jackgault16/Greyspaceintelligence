@@ -1,0 +1,202 @@
+import { createClient } from "@supabase/supabase-js";
+
+const CATEGORIES = ["political", "military", "economic", "social", "greyspace"];
+const STARTER_METRICS = {
+  political: { Government: "", Stability: "" },
+  military: { "Active personnel": "", Reserve: "", "Defense spending": "" },
+  economic: { GDP: "", "Key industries": "" },
+  social: { Population: "", Urbanization: "", "Life expectancy": "" },
+  greyspace: { "Key agencies": "", "Cyber capability": "", "Influence ops": "" }
+};
+
+const SPARQL_QUERY = `
+SELECT ?country ?iso2 ?countryLabel ?capitalLabel ?continentLabel ?coord WHERE {
+  ?country wdt:P297 ?iso2 .
+  VALUES ?class {
+    wd:Q6256
+    wd:Q3624078
+    wd:Q161243
+    wd:Q3336843
+    wd:Q82794
+    wd:Q46395
+  }
+  ?country wdt:P31/wdt:P279* ?class .
+  OPTIONAL { ?country wdt:P36 ?capital . }
+  OPTIONAL { ?country wdt:P30 ?continent . }
+  OPTIONAL { ?country wdt:P625 ?coord . }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+ORDER BY ?countryLabel
+`;
+
+export const onRequestPost = async ({ request, env }) => {
+  try {
+    const role = extractJwtRole(request);
+    if (role !== "admin") {
+      return json({ error: "Forbidden" }, 403);
+    }
+
+    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+      return json({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY." }, 500);
+    }
+
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
+
+    const rows = await fetchWikidataCountries();
+    const iso2List = rows.map(r => r.iso2);
+
+    const { data: existingCountries, error: ecErr } = await supabase
+      .from("countries")
+      .select("iso2,name,capital,region,centroid_lat,centroid_lng")
+      .in("iso2", iso2List);
+    if (ecErr) return json({ error: ecErr.message }, 500);
+
+    const existingMap = new Map((existingCountries || []).map(r => [String(r.iso2).toUpperCase(), r]));
+    const upsertRows = rows.map(r => {
+      const current = existingMap.get(r.iso2);
+      return {
+        iso2: r.iso2,
+        name: r.name || current?.name || null,
+        capital: r.capital ?? current?.capital ?? null,
+        region: r.region ?? current?.region ?? null,
+        centroid_lat: r.centroid_lat ?? current?.centroid_lat ?? null,
+        centroid_lng: r.centroid_lng ?? current?.centroid_lng ?? null
+      };
+    });
+
+    const countriesInserted = upsertRows.filter(r => !existingMap.has(r.iso2)).length;
+    const countriesUpdated = upsertRows.length - countriesInserted;
+
+    if (upsertRows.length) {
+      const { error } = await supabase.from("countries").upsert(upsertRows, { onConflict: "iso2" });
+      if (error) return json({ error: error.message }, 500);
+    }
+
+    const { data: existingProfiles, error: epErr } = await supabase
+      .from("country_profiles")
+      .select("iso2,category")
+      .in("iso2", iso2List);
+    if (epErr) return json({ error: epErr.message }, 500);
+
+    const profileSet = new Set((existingProfiles || []).map(p => `${String(p.iso2).toUpperCase()}|${String(p.category).toLowerCase()}`));
+    const createProfiles = [];
+    for (const iso2 of iso2List) {
+      for (const category of CATEGORIES) {
+        const key = `${iso2}|${category}`;
+        if (profileSet.has(key)) continue;
+        createProfiles.push({
+          iso2,
+          category,
+          metrics: STARTER_METRICS[category],
+          narrative: null,
+          sources: ["Wikidata (CC0)"]
+        });
+      }
+    }
+
+    if (createProfiles.length) {
+      const { error } = await supabase.from("country_profiles").upsert(createProfiles, { onConflict: "iso2,category" });
+      if (error) return json({ error: error.message }, 500);
+    }
+
+    return json({
+      countriesProcessed: upsertRows.length,
+      countriesInserted,
+      countriesUpdated,
+      profilesCreated: createProfiles.length
+    });
+  } catch (err) {
+    return json({ error: String(err?.message || err) }, 500);
+  }
+};
+
+function extractJwtRole(request) {
+  const auth = request.headers.get("authorization") || "";
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (!m) return "";
+  const token = m[1];
+  const parts = token.split(".");
+  if (parts.length < 2) return "";
+  const payloadJson = decodeBase64Url(parts[1]);
+  if (!payloadJson) return "";
+  try {
+    const payload = JSON.parse(payloadJson);
+    return String(payload?.role || payload?.app_metadata?.role || "");
+  } catch (_) {
+    return "";
+  }
+}
+
+function decodeBase64Url(input) {
+  try {
+    const pad = "=".repeat((4 - (input.length % 4)) % 4);
+    const b64 = (input + pad).replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(b64);
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch (_) {
+    return "";
+  }
+}
+
+async function fetchWikidataCountries() {
+  const endpoint = "https://query.wikidata.org/sparql";
+  const url = `${endpoint}?query=${encodeURIComponent(SPARQL_QUERY)}&format=json`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/sparql-results+json",
+      "User-Agent": "GreySpaceWikidataImporter/1.0 (admin api)"
+    }
+  });
+  if (!res.ok) throw new Error(`Wikidata query failed: ${res.status}`);
+  const json = await res.json();
+  const bindings = json?.results?.bindings || [];
+  const unique = new Map();
+  for (const row of bindings) {
+    const iso2 = String(row?.iso2?.value || "").trim().toUpperCase();
+    const name = String(row?.countryLabel?.value || "").trim();
+    if (!/^[A-Z]{2}$/.test(iso2) || !name) continue;
+    const [lng, lat] = parseWktPoint(String(row?.coord?.value || ""));
+    const item = {
+      iso2,
+      name,
+      capital: normalizeOptional(row?.capitalLabel?.value),
+      region: normalizeOptional(row?.continentLabel?.value),
+      centroid_lat: Number.isFinite(lat) ? lat : null,
+      centroid_lng: Number.isFinite(lng) ? lng : null
+    };
+    const existing = unique.get(iso2);
+    if (!existing) unique.set(iso2, item);
+    else {
+      unique.set(iso2, {
+        iso2,
+        name: existing.name || item.name,
+        capital: existing.capital || item.capital,
+        region: existing.region || item.region,
+        centroid_lat: existing.centroid_lat ?? item.centroid_lat,
+        centroid_lng: existing.centroid_lng ?? item.centroid_lng
+      });
+    }
+  }
+  return [...unique.values()];
+}
+
+function parseWktPoint(input) {
+  const m = String(input || "").match(/Point\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
+  if (!m) return [NaN, NaN];
+  return [Number(m[1]), Number(m[2])];
+}
+
+function normalizeOptional(v) {
+  const s = String(v || "").trim();
+  return s || null;
+}
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }
+  });
+}

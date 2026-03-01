@@ -1,0 +1,15 @@
+{
+  "name": "grey-space-code",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "import:wikidata": "tsx scripts/importWikidataCountries.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
+  }
+}

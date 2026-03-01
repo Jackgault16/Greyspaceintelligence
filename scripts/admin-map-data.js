@@ -12,6 +12,7 @@ const countryOptions = document.getElementById("countryOptions");
 const categoryTabs = document.getElementById("categoryTabs");
 const activeCategoryLabel = document.getElementById("activeCategoryLabel");
 const editorStatusBadge = document.getElementById("editorStatusBadge");
+const bootstrapWikidataBtn = document.getElementById("bootstrapWikidataBtn");
 const statusEl = document.getElementById("mapAdminStatus");
 
 const overviewCountryName = document.getElementById("overviewCountryName");
@@ -162,12 +163,44 @@ confirmCancelSwitch?.addEventListener("click", () => {
   switchConfirmModal.classList.remove("open");
 });
 
+bootstrapWikidataBtn?.addEventListener("click", runWikidataBootstrap);
+
 async function showApp(user) {
   loginWrap.style.display = "none";
   appWrap.style.display = "block";
   userLabel.textContent = user.email || "";
   await loadCountries();
   if (countries.length) await setSelectedCountry(countries[0].iso2);
+}
+
+async function runWikidataBootstrap() {
+  if (!supabase) return;
+  bootstrapWikidataBtn.disabled = true;
+  bootstrapWikidataBtn.textContent = "Importing...";
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch("/api/admin/import-wikidata", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {})
+      }
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      statusEl.textContent = `Wikidata import failed: ${json?.error || "Unknown error"}`;
+      return;
+    }
+    statusEl.textContent = `Wikidata import complete: ${json.countriesProcessed} countries (${json.countriesInserted} inserted, ${json.countriesUpdated} updated), ${json.profilesCreated} profiles created.`;
+    await loadCountries();
+    if (selectedIso2) await setSelectedCountry(selectedIso2);
+  } catch (err) {
+    statusEl.textContent = `Wikidata import failed: ${String(err?.message || err)}`;
+  } finally {
+    bootstrapWikidataBtn.disabled = false;
+    bootstrapWikidataBtn.textContent = "Bootstrap from Wikidata";
+  }
 }
 
 async function loadCountries() {
