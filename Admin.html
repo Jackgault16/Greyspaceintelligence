@@ -483,13 +483,13 @@
 
                 <div id="briefingFields" style="display:none;">
                     <div class="admin-subsection">
-                        <h3>BRIEF DOCUMENT MODE</h3>
+                        <h3 id="briefingModeHeading">BRIEFING ROOM MODE</h3>
                         <div class="admin-row">
                             <div>
                                 <label for="briefingEntryKind">Entry Kind</label>
                                 <select id="briefingEntryKind">
-                                    <option value="event" selected>Event Brief</option>
-                                    <option value="document">Brief Document</option>
+                                    <option value="document" selected>Brief Document</option>
+                                    <option value="event">Event Brief</option>
                                 </select>
                                 <div class="field-help" id="entryKindHelper" style="display:none;">Entry kind can't be changed after creation. Create a new item to switch type.</div>
                             </div>
@@ -525,11 +525,13 @@
                         </div>
                     </div>
 
-                    <label for="briefingWhyMatters">Why It Matters</label>
-                    <textarea id="briefingWhyMatters" placeholder="Strategic implications, affected actors, second-order effects"></textarea>
+                    <div id="eventBriefOnlyFields">
+                        <label for="briefingWhyMatters">Why It Matters</label>
+                        <textarea id="briefingWhyMatters" placeholder="Strategic implications, affected actors, second-order effects"></textarea>
 
-                    <label for="briefingAssessment">Assessment</label>
-                    <textarea id="briefingAssessment" placeholder="Short analyst judgement line"></textarea>
+                        <label for="briefingAssessment">Assessment</label>
+                        <textarea id="briefingAssessment" placeholder="Short analyst judgement line"></textarea>
+                    </div>
 
                     <div class="admin-row">
                         <div>

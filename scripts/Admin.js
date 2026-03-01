@@ -66,6 +66,8 @@ const briefingConfidence = document.getElementById("briefingConfidence");
 const briefingIndicators = document.getElementById("briefingIndicators");
 const briefingWhyMatters = document.getElementById("briefingWhyMatters");
 const briefingAssessment = document.getElementById("briefingAssessment");
+const eventBriefOnlyFields = document.getElementById("eventBriefOnlyFields");
+const briefingModeHeading = document.getElementById("briefingModeHeading");
 const briefingEntryKind = document.getElementById("briefingEntryKind");
 const briefingEntryKindRow = briefingEntryKind ? briefingEntryKind.closest(".admin-row") : null;
 const entryKindHelper = document.getElementById("entryKindHelper");
@@ -252,6 +254,8 @@ function applyEntryKindTemplate(kindState) {
         briefPins = [];
         briefPinsBaselineHash = "[]";
         renderBriefPins();
+        // Keep event-brief analysis fields; reset document-specific tags only.
+        briefingTags.value = "";
         return;
     }
 
@@ -260,6 +264,7 @@ function applyEntryKindTemplate(kindState) {
     fillSubtypeOptions();
     briefDocSubtypeSelect.value = "daily";
     briefDocSubtypeSpecial.value = "";
+    // Clear event-brief-only analysis on switch to document.
     briefingWhyMatters.value = "";
     briefingAssessment.value = "";
 }
@@ -365,6 +370,14 @@ function syncEditorModeUI() {
     const isDocument = isBriefing && getBriefingEntryKind() === "document";
     briefDocumentTypeFields.style.display = isDocument ? "block" : "none";
     if (briefPinsSection) briefPinsSection.style.display = isDocument ? "block" : "none";
+    if (eventBriefOnlyFields) eventBriefOnlyFields.style.display = isBriefing && !isDocument ? "block" : "none";
+    if (briefingModeHeading) {
+        briefingModeHeading.textContent = isDocument ? "BRIEF DOCUMENT MODE" : "EVENT BRIEF MODE";
+    }
+    if (publishButton) {
+        if (!isBriefing) publishButton.textContent = "SAVE LIVE EVENT";
+        else publishButton.textContent = isDocument ? "SAVE BRIEF DOCUMENT" : "SAVE EVENT BRIEF";
+    }
     if (isDocument) {
         initBriefPinsMap();
         if (briefPinsMap) {
