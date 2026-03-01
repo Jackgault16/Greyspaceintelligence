@@ -68,6 +68,7 @@ const briefingWhyMatters = document.getElementById("briefingWhyMatters");
 const briefingAssessment = document.getElementById("briefingAssessment");
 const briefingEntryKind = document.getElementById("briefingEntryKind");
 const briefingEntryKindRow = briefingEntryKind ? briefingEntryKind.closest(".admin-row") : null;
+const entryKindHelper = document.getElementById("entryKindHelper");
 const intelScopeLabel = document.querySelector('label[for="intelScope"]');
 const intelScopeRow = intelScope ? intelScope.closest(".admin-row") : null;
 const briefDocType = document.getElementById("briefDocType");
@@ -107,6 +108,7 @@ let eventRowsCache = [];
 let docsRowsCache = [];
 let currentBriefFrameKey = "global";
 let didInitBriefPinsView = false;
+let entryKindState = "brief_document"; // 'brief_document' | 'event_brief'
 
 function generateUuid() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -224,7 +226,54 @@ function getScopeMode() {
 }
 
 function getBriefingEntryKind() {
-    return briefingEntryKind.value === "document" ? "document" : "event";
+    return entryKindState === "brief_document" ? "document" : "event";
+}
+
+function entryKindStateFromUiValue(value) {
+    return value === "event" ? "event_brief" : "brief_document";
+}
+
+function entryKindUiValueFromState(value) {
+    return value === "event_brief" ? "event" : "document";
+}
+
+function isEditingExistingBriefingItem() {
+    if (adminMode !== "documents") return false;
+    if (!editingIntelId) return false;
+    return editingTable === BRIEF_DOCUMENTS_TABLE || editingTable === BRIEFING_INTEL_TABLE;
+}
+
+function applyEntryKindTemplate(kindState) {
+    if (kindState === "event_brief") {
+        briefDocType.value = "scheduled";
+        fillSubtypeOptions();
+        briefDocSubtypeSelect.value = "daily";
+        briefDocSubtypeSpecial.value = "";
+        briefPins = [];
+        briefPinsBaselineHash = "[]";
+        renderBriefPins();
+        return;
+    }
+
+    // brief_document defaults
+    briefDocType.value = "scheduled";
+    fillSubtypeOptions();
+    briefDocSubtypeSelect.value = "daily";
+    briefDocSubtypeSpecial.value = "";
+    briefingWhyMatters.value = "";
+    briefingAssessment.value = "";
+}
+
+function setEntryKindState(nextState, { applyTemplate = false } = {}) {
+    const normalized = nextState === "event_brief" ? "event_brief" : "brief_document";
+    const changed = entryKindState !== normalized;
+    entryKindState = normalized;
+    if (briefingEntryKind) {
+        briefingEntryKind.value = entryKindUiValueFromState(entryKindState);
+    }
+    if (applyTemplate && changed && !isEditingExistingBriefingItem()) {
+        applyEntryKindTemplate(entryKindState);
+    }
 }
 
 function getSelectedTable() {
@@ -344,7 +393,7 @@ function enforceAdminModeConstraints() {
         if (intelScopeLabel) intelScopeLabel.style.display = "none";
         if (intelScopeRow && intelScopeRow.contains(intelScope)) intelScopeRow.style.display = "none";
 
-        if (briefingEntryKind) {
+        if (briefingEntryKind && briefingEntryKind.options.length !== 2) {
             briefingEntryKind.innerHTML = "";
             const optionDoc = document.createElement("option");
             optionDoc.value = "document";
@@ -354,21 +403,28 @@ function enforceAdminModeConstraints() {
             optionEvent.textContent = "Event Brief";
             briefingEntryKind.appendChild(optionDoc);
             briefingEntryKind.appendChild(optionEvent);
-            if (briefingEntryKind.value !== "document" && briefingEntryKind.value !== "event") {
-                briefingEntryKind.value = "document";
-            }
-            briefingEntryKind.disabled = false;
         }
+
+        const isLocked = isEditingExistingBriefingItem();
+        briefingEntryKind.disabled = isLocked;
+        briefingEntryKind.style.pointerEvents = isLocked ? "none" : "auto";
+        briefingEntryKind.style.opacity = isLocked ? "0.65" : "1";
+        if (entryKindHelper) entryKindHelper.style.display = isLocked ? "block" : "none";
         if (briefingEntryKindRow) briefingEntryKindRow.style.display = "flex";
+        setEntryKindState(entryKindState, { applyTemplate: false });
     } else {
         setSingleSelectOption(intelScope, "LIVE", "Live");
         setSingleSelectOption(briefingEntryKind, "event", "Event Brief");
         intelScope.disabled = true;
         briefingEntryKind.disabled = true;
+        briefingEntryKind.style.pointerEvents = "none";
+        briefingEntryKind.style.opacity = "0.65";
+        if (entryKindHelper) entryKindHelper.style.display = "none";
         if (intelScope) intelScope.style.display = "none";
         if (intelScopeLabel) intelScopeLabel.style.display = "none";
         if (intelScopeRow && intelScopeRow.contains(intelScope)) intelScopeRow.style.display = "none";
         if (briefingEntryKindRow) briefingEntryKindRow.style.display = "none";
+        setEntryKindState("event_brief", { applyTemplate: false });
     }
 }
 
@@ -877,7 +933,6 @@ function clearForm() {
     briefingIndicators.value = "";
     briefingWhyMatters.value = "";
     briefingAssessment.value = "";
-    briefingEntryKind.value = adminMode === "documents" ? "document" : "event";
     briefDocType.value = "scheduled";
     briefingTags.value = "";
     briefDocSubtypeSpecial.value = "";
@@ -888,6 +943,7 @@ function clearForm() {
     renderBriefPins();
 
     fillSubtypeOptions();
+    setEntryKindState(adminMode === "documents" ? "brief_document" : "event_brief", { applyTemplate: false });
     enforceAdminModeConstraints();
     setAutoTimestamp();
     deleteButton.style.display = "none";
@@ -1061,13 +1117,13 @@ async function loadIntelIntoEditor(item, table) {
 
     if (table === LIVE_INTEL_TABLE) {
         intelScope.value = "LIVE";
-        briefingEntryKind.value = "event";
+        setEntryKindState("event_brief", { applyTemplate: false });
     } else if (table === BRIEF_DOCUMENTS_TABLE) {
         intelScope.value = "BRIEFING";
-        briefingEntryKind.value = "document";
+        setEntryKindState("brief_document", { applyTemplate: false });
     } else {
         intelScope.value = "BRIEFING";
-        briefingEntryKind.value = "event";
+        setEntryKindState("event_brief", { applyTemplate: false });
     }
 
     const points = item.key_points || item.points || item.keyPoints;
@@ -1139,12 +1195,14 @@ function setAdminMode(mode) {
 
     if (adminMode === "documents") {
         intelScope.value = "BRIEFING";
-        briefingEntryKind.value = "document";
+        if (!isEditingExistingBriefingItem()) {
+            setEntryKindState("brief_document", { applyTemplate: false });
+        }
         if (queueTitle) queueTitle.textContent = "BRIEFING ROOM QUEUE";
         if (queueSubtitle) queueSubtitle.textContent = "Publishes to Briefing Room only.";
     } else {
         intelScope.value = "LIVE";
-        briefingEntryKind.value = "event";
+        setEntryKindState("event_brief", { applyTemplate: false });
         if (queueTitle) queueTitle.textContent = "LIVE QUEUE";
         if (queueSubtitle) queueSubtitle.textContent = "Publishes to Live page and Latest Intel.";
     }
@@ -1347,6 +1405,13 @@ intelScope.addEventListener("change", () => {
     syncEditorModeUI();
 });
 briefingEntryKind.addEventListener("change", () => {
+    if (isEditingExistingBriefingItem()) {
+        setEntryKindState(editingTable === BRIEF_DOCUMENTS_TABLE ? "brief_document" : "event_brief", { applyTemplate: false });
+        enforceAdminModeConstraints();
+        syncEditorModeUI();
+        return;
+    }
+    setEntryKindState(entryKindStateFromUiValue(briefingEntryKind.value), { applyTemplate: true });
     enforceAdminModeConstraints();
     syncEditorModeUI();
 });
