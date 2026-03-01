@@ -10,6 +10,7 @@ async function main() {
   console.log(`- countries inserted: ${summary.countriesInserted}`);
   console.log(`- countries updated: ${summary.countriesUpdated}`);
   console.log(`- profiles created: ${summary.profilesCreated}`);
+  console.log(`- profiles enriched: ${summary.profilesEnriched}`);
 }
 
 main().catch(err => {

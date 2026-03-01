@@ -27,6 +27,25 @@ SELECT ?country ?iso2 ?countryLabel ?capitalLabel ?continentLabel ?coord WHERE {
 ORDER BY ?countryLabel
 `;
 
+const ENRICH_QUERY = `
+SELECT ?iso2
+       (SAMPLE(?governmentLabel) AS ?governmentLabel)
+       (MAX(?population) AS ?population)
+       (MAX(?gdp) AS ?gdp)
+       (MAX(?lifeExpectancy) AS ?lifeExpectancy)
+       (MAX(?defenseSpending) AS ?defenseSpending)
+WHERE {
+  ?country wdt:P297 ?iso2 .
+  OPTIONAL { ?country wdt:P122 ?government . }
+  OPTIONAL { ?country wdt:P1082 ?population . }
+  OPTIONAL { ?country wdt:P2131 ?gdp . }
+  OPTIONAL { ?country wdt:P2250 ?lifeExpectancy . }
+  OPTIONAL { ?country wdt:P2206 ?defenseSpending . }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+GROUP BY ?iso2
+`;
+
 export const onRequestPost = async ({ request, env }) => {
   try {
     const token = extractBearerToken(request);
@@ -56,6 +75,7 @@ export const onRequestPost = async ({ request, env }) => {
     const supabase = createSupabaseRestClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
     const rows = await fetchWikidataCountries();
+    const enrichMap = await fetchWikidataEnrichment();
     const iso2List = rows.map(r => r.iso2);
 
     const existingCountriesRes = await supabase.selectAll("countries", "iso2,name,capital,region,centroid_lat,centroid_lng");
@@ -83,7 +103,7 @@ export const onRequestPost = async ({ request, env }) => {
       if (upsertCountriesRes.error) return json({ error: upsertCountriesRes.error }, 500);
     }
 
-    const existingProfilesRes = await supabase.selectAll("country_profiles", "iso2,category");
+    const existingProfilesRes = await supabase.selectAll("country_profiles", "id,iso2,category,metrics,sources");
     if (existingProfilesRes.error) return json({ error: existingProfilesRes.error }, 500);
     const existingProfiles = (existingProfilesRes.data || []).filter(p => iso2List.includes(String(p.iso2 || "").toUpperCase()));
 
@@ -108,11 +128,50 @@ export const onRequestPost = async ({ request, env }) => {
       if (upsertProfilesRes.error) return json({ error: upsertProfilesRes.error }, 500);
     }
 
+    const allProfilesRes = await supabase.selectAll("country_profiles", "id,iso2,category,metrics,sources");
+    if (allProfilesRes.error) return json({ error: allProfilesRes.error }, 500);
+    const allProfiles = (allProfilesRes.data || []).filter(p => iso2List.includes(String(p.iso2 || "").toUpperCase()));
+
+    const enrichUpdates = [];
+    for (const row of allProfiles) {
+      const iso2 = String(row.iso2 || "").toUpperCase();
+      const category = String(row.category || "").toLowerCase();
+      const enrich = enrichMap.get(iso2);
+      if (!enrich) continue;
+
+      const nextMetrics = toMetricObject(row.metrics);
+      let changed = false;
+      if (category === "political") changed ||= fillBlank(nextMetrics, "Government", enrich.governmentLabel);
+      if (category === "economic") changed ||= fillBlank(nextMetrics, "GDP", formatMoney(enrich.gdp));
+      if (category === "social") {
+        changed ||= fillBlank(nextMetrics, "Population", formatInt(enrich.population));
+        changed ||= fillBlank(nextMetrics, "Life expectancy", formatYears(enrich.lifeExpectancy));
+      }
+      if (category === "military") changed ||= fillBlank(nextMetrics, "Defense spending", formatMoney(enrich.defenseSpending));
+      if (!changed) continue;
+
+      const nextSources = normalizeSources(row.sources);
+      if (!nextSources.includes("Wikidata (CC0)")) nextSources.push("Wikidata (CC0)");
+      enrichUpdates.push({
+        id: row.id,
+        iso2,
+        category,
+        metrics: nextMetrics,
+        sources: nextSources
+      });
+    }
+
+    if (enrichUpdates.length) {
+      const enrichRes = await supabase.upsert("country_profiles", enrichUpdates, "id");
+      if (enrichRes.error) return json({ error: enrichRes.error }, 500);
+    }
+
     return json({
       countriesProcessed: upsertRows.length,
       countriesInserted,
       countriesUpdated,
-      profilesCreated: createProfiles.length
+      profilesCreated: createProfiles.length,
+      profilesEnriched: enrichUpdates.length
     });
   } catch (err) {
       return json({ error: String(err?.message || err) }, 500);
@@ -183,6 +242,32 @@ async function fetchWikidataCountries() {
   return [...unique.values()];
 }
 
+async function fetchWikidataEnrichment() {
+  const endpoint = "https://query.wikidata.org/sparql";
+  const url = `${endpoint}?query=${encodeURIComponent(ENRICH_QUERY)}&format=json`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/sparql-results+json",
+      "User-Agent": "GreySpaceWikidataImporter/1.0 (admin api phase2)"
+    }
+  });
+  if (!res.ok) throw new Error(`Wikidata enrichment query failed: ${res.status}`);
+  const jsonData = await res.json();
+  const out = new Map();
+  for (const row of jsonData?.results?.bindings || []) {
+    const iso2 = String(row?.iso2?.value || "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(iso2)) continue;
+    out.set(iso2, {
+      governmentLabel: normalizeOptional(row?.governmentLabel?.value),
+      population: toNum(row?.population?.value),
+      gdp: toNum(row?.gdp?.value),
+      lifeExpectancy: toNum(row?.lifeExpectancy?.value),
+      defenseSpending: toNum(row?.defenseSpending?.value)
+    });
+  }
+  return out;
+}
+
 function parseWktPoint(input) {
   const m = String(input || "").match(/Point\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
   if (!m) return [NaN, NaN];
@@ -192,6 +277,47 @@ function parseWktPoint(input) {
 function normalizeOptional(v) {
   const s = String(v || "").trim();
   return s || null;
+}
+
+function toNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatInt(v) {
+  if (!Number.isFinite(Number(v))) return "";
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(v));
+}
+
+function formatMoney(v) {
+  if (!Number.isFinite(Number(v))) return "";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(v));
+}
+
+function formatYears(v) {
+  if (!Number.isFinite(Number(v))) return "";
+  return `${Number(v).toFixed(1)} years`;
+}
+
+function toMetricObject(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out = {};
+  Object.entries(raw).forEach(([k, v]) => { out[String(k)] = String(v ?? ""); });
+  return out;
+}
+
+function fillBlank(obj, key, value) {
+  if (!value) return false;
+  const current = String(obj[key] || "").trim();
+  if (current) return false;
+  obj[key] = value;
+  return true;
+}
+
+function normalizeSources(raw) {
+  if (Array.isArray(raw)) return raw.map(v => String(v).trim()).filter(Boolean);
+  if (typeof raw === "string") return raw.split(",").map(v => v.trim()).filter(Boolean);
+  return [];
 }
 
 function json(data, status = 200) {

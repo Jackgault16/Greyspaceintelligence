@@ -192,7 +192,7 @@ async function runWikidataBootstrap() {
       statusEl.textContent = `Wikidata import failed: ${json?.error || "Unknown error"}`;
       return;
     }
-    statusEl.textContent = `Wikidata import complete: ${json.countriesProcessed} countries (${json.countriesInserted} inserted, ${json.countriesUpdated} updated), ${json.profilesCreated} profiles created.`;
+    statusEl.textContent = `Wikidata import complete: ${json.countriesProcessed} countries (${json.countriesInserted} inserted, ${json.countriesUpdated} updated), ${json.profilesCreated} profiles created, ${json.profilesEnriched || 0} profiles enriched.`;
     await loadCountries();
     if (selectedIso2) await setSelectedCountry(selectedIso2);
   } catch (err) {
