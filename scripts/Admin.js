@@ -1,4 +1,39 @@
 // ===============================
+// TYPE NOTES (runtime JS, TS-style unions documented)
+// BriefType: 'scheduled' | 'regional' | 'special'
+// BriefSubtype: scheduled keys or region keys or free text
+// Status: 'ongoing' | 'developing' | 'resolved'
+// Confidence: 'low' | 'medium' | 'high'
+// ImpactLevel: 'strategic' | 'operational' | 'tactical' | 'noise'
+// RiskLevel: 'low' | 'medium' | 'high'
+// PriorityLevel: 'low' | 'medium' | 'high'
+// ===============================
+
+const REGION_OPTIONS = [
+    { key: "north_america", label: "North America" },
+    { key: "south_america", label: "South America" },
+    { key: "europe", label: "Europe" },
+    { key: "middle_east", label: "Middle East" },
+    { key: "africa", label: "Africa" },
+    { key: "central_asia", label: "Central Asia" },
+    { key: "east_asia", label: "East Asia" },
+    { key: "south_asia", label: "South Asia" },
+    { key: "southeast_asia", label: "Southeast Asia" },
+    { key: "oceania", label: "Oceania" },
+    { key: "global_multi_region", label: "Global / Multi-Region" }
+];
+
+const SCHEDULED_SUBTYPES = [
+    { key: "morning", label: "Morning" },
+    { key: "evening", label: "Evening" },
+    { key: "daily", label: "Daily" },
+    { key: "weekly", label: "Weekly" },
+    { key: "monthly", label: "Monthly" }
+];
+
+const PRIORITY_ORDER = { low: 1, medium: 2, high: 3 };
+
+// ===============================
 // GLOBAL ELEMENTS
 // ===============================
 const loginView = document.getElementById("loginView");
@@ -11,6 +46,7 @@ const logoutLink = document.getElementById("logoutLink");
 
 const liveIntelList = document.getElementById("liveIntelList");
 const briefingIntelList = document.getElementById("briefingIntelList");
+const briefDocumentsList = document.getElementById("briefDocumentsList");
 const editorStatus = document.getElementById("editorStatus");
 const editorModeTitle = document.getElementById("editorModeTitle");
 
@@ -35,6 +71,13 @@ const briefingConfidence = document.getElementById("briefingConfidence");
 const briefingIndicators = document.getElementById("briefingIndicators");
 const briefingWhyMatters = document.getElementById("briefingWhyMatters");
 const briefingAssessment = document.getElementById("briefingAssessment");
+const briefingEntryKind = document.getElementById("briefingEntryKind");
+const briefDocType = document.getElementById("briefDocType");
+const briefDocSubtypeSelect = document.getElementById("briefDocSubtypeSelect");
+const briefDocSubtypeSpecialWrap = document.getElementById("briefDocSubtypeSpecialWrap");
+const briefDocSubtypeSpecial = document.getElementById("briefDocSubtypeSpecial");
+const briefDocumentTypeFields = document.getElementById("briefDocumentTypeFields");
+const briefingTags = document.getElementById("briefingTags");
 
 const publishButton = document.getElementById("publishButton");
 const resetFormButton = document.getElementById("resetFormButton");
@@ -44,65 +87,106 @@ const citySearch = document.getElementById("citySearch");
 const adminEmailInput = document.getElementById("adminEmail");
 const adminPasswordInput = document.getElementById("adminPassword");
 
-const intelFields = {
-    title: intelTitle,
-    summary: intelSummary,
-    details: intelDetails,
-    region: intelRegion,
-    category: intelCategory,
-    scope: intelScope,
-    timestamp: intelTimestamp,
-    sources: intelSources,
-    lat: intelLat,
-    lng: intelLng,
-    briefingRisk,
-    briefingPriority,
-    briefingZoom,
-    briefingPoints,
-    briefingStatus,
-    briefingImpactLevel,
-    briefingConfidence,
-    briefingIndicators,
-    briefingWhyMatters,
-    briefingAssessment
-};
-
 let editingIntelId = null;
 let editingTable = null;
+let adminMarker = null;
 
 function normalizeRiskLevel(value) {
     const v = String(value || "").toLowerCase();
-    if (v === "high" || v === "medium" || v === "low") return v;
-    if (v === "med") return "medium";
-    return "low";
+    return v === "high" || v === "medium" || v === "low" ? v : "low";
 }
 
 function normalizePriorityLevel(value) {
     const v = String(value || "").toLowerCase();
-    if (v === "high" || v === "medium" || v === "low") return v;
-    if (v === "med") return "medium";
-    return "medium";
+    return v === "high" || v === "medium" || v === "low" ? v : "medium";
 }
 
 function normalizeImpactLevel(value) {
     const v = String(value || "").toLowerCase();
-    if (v === "strategic" || v === "operational" || v === "tactical" || v === "noise") return v;
-    return "noise";
+    return v === "strategic" || v === "operational" || v === "tactical" || v === "noise" ? v : "noise";
+}
+
+function normalizeStatus(value) {
+    const v = String(value || "").toLowerCase();
+    return v === "ongoing" || v === "developing" || v === "resolved" ? v : "ongoing";
+}
+
+function normalizeConfidence(value) {
+    const v = String(value || "").toLowerCase();
+    return v === "low" || v === "medium" || v === "high" ? v : "medium";
+}
+
+function normalizeBriefType(value) {
+    const v = String(value || "").toLowerCase();
+    return v === "scheduled" || v === "regional" || v === "special" ? v : "scheduled";
+}
+
+function splitMultiline(value, limit = 12) {
+    return String(value || "")
+        .split(/\r?\n/)
+        .map(v => v.trim())
+        .filter(Boolean)
+        .slice(0, limit);
+}
+
+function joinMultiline(value) {
+    if (Array.isArray(value)) return value.join("\n");
+    if (typeof value === "string") return value.split(/\r?\n|;/).map(v => v.trim()).filter(Boolean).join("\n");
+    return "";
+}
+
+function splitCommaList(value, limit = 12) {
+    return String(value || "")
+        .split(",")
+        .map(v => v.trim())
+        .filter(Boolean)
+        .slice(0, limit);
+}
+
+function sourceArrayFromInput(value) {
+    return splitCommaList(value, 24);
+}
+
+function sourceInputFromStored(value) {
+    if (Array.isArray(value)) return value.join(", ");
+    return String(value || "");
+}
+
+function regionKeyByLabel(label) {
+    const hit = REGION_OPTIONS.find(r => r.label.toLowerCase() === String(label || "").toLowerCase().trim());
+    return hit ? hit.key : "";
+}
+
+function regionLabelByKey(key) {
+    const hit = REGION_OPTIONS.find(r => r.key === String(key || "").toLowerCase().trim());
+    return hit ? hit.label : key;
+}
+
+function getScopeMode() {
+    return intelScope.value === "BRIEFING" ? "BRIEFING" : "LIVE";
+}
+
+function getBriefingEntryKind() {
+    return briefingEntryKind.value === "document" ? "document" : "event";
 }
 
 function getSelectedTable() {
-    return intelFields.scope.value === "BRIEFING" ? BRIEFING_INTEL_TABLE : LIVE_INTEL_TABLE;
+    if (getScopeMode() === "LIVE") return LIVE_INTEL_TABLE;
+    return getBriefingEntryKind() === "document" ? BRIEF_DOCUMENTS_TABLE : BRIEFING_INTEL_TABLE;
 }
 
 function tableLabel(table) {
-    return table === BRIEFING_INTEL_TABLE ? "BRIEFING" : "LIVE";
+    if (table === BRIEF_DOCUMENTS_TABLE) return "BRIEF DOCUMENT";
+    if (table === BRIEFING_INTEL_TABLE) return "EVENT BRIEF";
+    return "LIVE";
 }
 
 async function fetchTableRows(table) {
+    const orderColumn = table === BRIEF_DOCUMENTS_TABLE ? "updated_at" : "timestamp";
     const { data, error } = await supabase
         .from(table)
         .select("*")
-        .order("timestamp", { ascending: false });
+        .order(orderColumn, { ascending: false });
 
     if (error) {
         console.error(`Failed to load intel from ${table}:`, error);
@@ -112,9 +196,6 @@ async function fetchTableRows(table) {
     return data.map(item => ({ ...item, __table: table }));
 }
 
-// ===============================
-// AUTO TIMESTAMP
-// ===============================
 function setAutoTimestamp() {
     const now = new Date();
     const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -132,38 +213,52 @@ function setCoordinates(lng, lat) {
     intelLng.value = lng.toFixed(6);
 }
 
-function getScopeMode() {
-    return intelFields.scope.value === "BRIEFING" ? "BRIEFING" : "LIVE";
+function fillSubtypeOptions() {
+    const briefType = normalizeBriefType(briefDocType.value);
+    const current = briefDocSubtypeSelect.value;
+    let options = SCHEDULED_SUBTYPES;
+
+    if (briefType === "regional") {
+        options = REGION_OPTIONS;
+    } else if (briefType === "special") {
+        options = [];
+    }
+
+    briefDocSubtypeSelect.innerHTML = "";
+
+    if (options.length) {
+        options.forEach(opt => {
+            const node = document.createElement("option");
+            node.value = opt.key;
+            node.textContent = opt.label;
+            briefDocSubtypeSelect.appendChild(node);
+        });
+        briefDocSubtypeSelect.value = options.find(o => o.key === current)?.key || options[0].key;
+    }
+
+    const isSpecial = briefType === "special";
+    briefDocSubtypeSelect.style.display = isSpecial ? "none" : "block";
+    briefDocSubtypeSpecialWrap.style.display = isSpecial ? "block" : "none";
 }
 
 function syncEditorModeUI() {
     const isBriefing = getScopeMode() === "BRIEFING";
     briefingFields.style.display = isBriefing ? "block" : "none";
+
     if (editorModeTitle) {
         editorModeTitle.textContent = isBriefing ? "BRIEFING ROOM EDITOR" : "LIVE EDITOR";
     }
+
     intelSummary.placeholder = isBriefing
-        ? "Executive summary for briefing readers"
+        ? "Executive summary (supports multi-paragraph)"
         : "One or two lines of context";
     intelDetails.placeholder = isBriefing
-        ? "Detailed analysis body for briefing room"
+        ? "Detailed body (supports multi-paragraph)"
         : "Deeper context, implications, sources, etc.";
-}
 
-function parsePointsFromText(text) {
-    return String(text || "")
-        .split(/\r?\n/)
-        .map(p => p.trim())
-        .filter(Boolean);
-}
-
-function parsePointsFromItem(item) {
-    if (Array.isArray(item.points)) return item.points;
-    if (Array.isArray(item.key_points)) return item.key_points;
-    if (typeof item.points === "string") {
-        return item.points.split(/\r?\n|;/).map(p => p.trim()).filter(Boolean);
-    }
-    return [];
+    const isDocument = isBriefing && getBriefingEntryKind() === "document";
+    briefDocumentTypeFields.style.display = isDocument ? "block" : "none";
+    fillSubtypeOptions();
 }
 
 function extractMissingColumnName(error) {
@@ -199,12 +294,12 @@ async function saveWithColumnFallback(table, payload, editingId) {
 
         if (!result.error) return result;
 
-        // Try shape conversions for stricter briefing_room schemas.
-        if (Array.isArray(workingPayload.points)) {
+        if (Array.isArray(workingPayload.points) && table === BRIEFING_INTEL_TABLE) {
             workingPayload.points = workingPayload.points.join("\n");
             continue;
         }
-        if (Array.isArray(workingPayload.coords)) {
+
+        if (Array.isArray(workingPayload.coords) && table === BRIEFING_INTEL_TABLE) {
             const [lng, lat] = workingPayload.coords;
             workingPayload.coords = `${lng},${lat}`;
             continue;
@@ -212,21 +307,7 @@ async function saveWithColumnFallback(table, payload, editingId) {
 
         const missingColumn = extractMissingColumnName(result.error);
         if (!missingColumn || !(missingColumn in workingPayload)) {
-            // Final compatibility fallback: keep only safest common fields.
-            const minimalPayload = {
-                title: workingPayload.title,
-                summary: workingPayload.summary,
-                timestamp: workingPayload.timestamp,
-                category: workingPayload.category,
-                region: workingPayload.region,
-                sources: workingPayload.sources
-            };
-
-            const finalResult = editingId
-                ? await supabase.from(table).update(minimalPayload).eq("id", editingId)
-                : await supabase.from(table).insert(minimalPayload);
-
-            return finalResult.error ? result : finalResult;
+            return result;
         }
 
         delete workingPayload[missingColumn];
@@ -237,7 +318,6 @@ async function saveWithColumnFallback(table, payload, editingId) {
 
 function regionFromCountryCode(rawCode) {
     if (!rawCode) return "";
-
     const code = rawCode.toUpperCase();
 
     const northAmerica = new Set(["US", "CA", "MX", "GL", "BM"]);
@@ -275,15 +355,10 @@ function regionFromCountryCode(rawCode) {
 function extractCountryCodeFromFeature(feature) {
     const context = feature?.context || [];
     const country = context.find(entry => (entry.id || "").startsWith("country."));
-
-    if (country?.short_code) {
-        return country.short_code.toUpperCase();
-    }
-
+    if (country?.short_code) return country.short_code.toUpperCase();
     if (feature?.place_type?.includes("country") && feature.properties?.short_code) {
         return String(feature.properties.short_code).toUpperCase();
     }
-
     return "";
 }
 
@@ -305,8 +380,6 @@ const adminMap = new mapboxgl.Map({
     zoom: 1.6
 });
 
-let adminMarker = null;
-
 function placeAdminMarker(lng, lat) {
     if (adminMarker) adminMarker.remove();
     adminMarker = new mapboxgl.Marker({ color: "#f97316" })
@@ -314,10 +387,7 @@ function placeAdminMarker(lng, lat) {
         .addTo(adminMap);
 }
 
-// ===============================
-// MAP CLICK HANDLER
-// ===============================
-adminMap.on("click", async (e) => {
+adminMap.on("click", async e => {
     const { lng, lat } = e.lngLat;
     setCoordinates(lng, lat);
     placeAdminMarker(lng, lat);
@@ -334,16 +404,13 @@ adminMap.on("click", async (e) => {
     }
 });
 
-// ===============================
-// CITY SEARCH
-// ===============================
 async function geocodeCity(query) {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}`;
     const res = await fetch(url);
     return res.json();
 }
 
-citySearch.addEventListener("keydown", async (e) => {
+citySearch.addEventListener("keydown", async e => {
     if (e.key !== "Enter") return;
 
     const query = citySearch.value.trim();
@@ -364,56 +431,49 @@ citySearch.addEventListener("keydown", async (e) => {
     }
 });
 
-// ===============================
-// CLEAR FORM
-// ===============================
 function clearForm() {
     editingIntelId = null;
     editingTable = null;
 
-    intelFields.title.value = "";
-    intelFields.summary.value = "";
-    intelFields.details.value = "";
-    intelFields.region.value = "";
-    intelFields.category.value = "";
-    intelFields.sources.value = "";
-    intelFields.lat.value = "";
-    intelFields.lng.value = "";
-    intelFields.briefingRisk.value = "medium";
-    intelFields.briefingPriority.value = "medium";
-    intelFields.briefingZoom.value = "5";
-    intelFields.briefingPoints.value = "";
-    intelFields.briefingStatus.value = "Ongoing";
-    intelFields.briefingImpactLevel.value = "noise";
-    intelFields.briefingConfidence.value = "Medium";
-    intelFields.briefingIndicators.value = "";
-    intelFields.briefingWhyMatters.value = "";
-    intelFields.briefingAssessment.value = "";
+    intelTitle.value = "";
+    intelSummary.value = "";
+    intelDetails.value = "";
+    intelRegion.value = "";
+    intelCategory.value = "";
+    intelSources.value = "";
+    intelLat.value = "";
+    intelLng.value = "";
+    briefingRisk.value = "medium";
+    briefingPriority.value = "medium";
+    briefingZoom.value = "5";
+    briefingPoints.value = "";
+    briefingStatus.value = "ongoing";
+    briefingImpactLevel.value = "noise";
+    briefingConfidence.value = "medium";
+    briefingIndicators.value = "";
+    briefingWhyMatters.value = "";
+    briefingAssessment.value = "";
+    briefingEntryKind.value = "event";
+    briefDocType.value = "scheduled";
+    briefingTags.value = "";
+    briefDocSubtypeSpecial.value = "";
 
+    fillSubtypeOptions();
     setAutoTimestamp();
     deleteButton.style.display = "none";
     setEditorStatus("");
     syncEditorModeUI();
 }
 
-resetFormButton.addEventListener("click", clearForm);
-intelScope.addEventListener("change", () => {
-    clearForm();
-    syncEditorModeUI();
-});
-
-// ===============================
-// LOAD EXISTING INTEL
-// ===============================
-function createIntelListItem(item) {
-    const table = item.__table || getSelectedTable();
+function createIntelListItem(item, table) {
+    const timestamp = item.updated_at || item.published_at || item.timestamp || item.created_at;
     const div = document.createElement("div");
     div.className = "intel-item";
 
     div.innerHTML = `
         <div class="intel-item-main">
-            <div class="intel-item-title">${item.title}</div>
-            <div class="intel-item-meta">${new Date(item.timestamp).toLocaleString()} • ${tableLabel(table)}</div>
+            <div class="intel-item-title">${item.title || "Untitled"}</div>
+            <div class="intel-item-meta">${timestamp ? new Date(timestamp).toLocaleString() : "--"} • ${tableLabel(table)}</div>
         </div>
         <div class="intel-item-actions">
             <button class="btn-secondary" data-id="${item.id}">EDIT</button>
@@ -425,144 +485,230 @@ function createIntelListItem(item) {
 }
 
 async function loadIntelList() {
-    const [liveRows, briefingRows] = await Promise.all([
+    const [liveRows, briefingRows, briefDocsRows] = await Promise.all([
         fetchTableRows(LIVE_INTEL_TABLE),
-        fetchTableRows(BRIEFING_INTEL_TABLE)
+        fetchTableRows(BRIEFING_INTEL_TABLE),
+        fetchTableRows(BRIEF_DOCUMENTS_TABLE)
     ]);
 
     liveIntelList.innerHTML = "";
     briefingIntelList.innerHTML = "";
+    briefDocumentsList.innerHTML = "";
 
-    liveRows.forEach(item => liveIntelList.appendChild(createIntelListItem(item)));
-    briefingRows.forEach(item => briefingIntelList.appendChild(createIntelListItem(item)));
+    liveRows.forEach(item => liveIntelList.appendChild(createIntelListItem(item, LIVE_INTEL_TABLE)));
+    briefingRows.forEach(item => briefingIntelList.appendChild(createIntelListItem(item, BRIEFING_INTEL_TABLE)));
+    briefDocsRows.forEach(item => briefDocumentsList.appendChild(createIntelListItem(item, BRIEF_DOCUMENTS_TABLE)));
 }
 
-// ===============================
-// LOAD INTEL INTO EDITOR
-// ===============================
+function getDocumentSubtypeFromUI() {
+    if (normalizeBriefType(briefDocType.value) === "special") {
+        return briefDocSubtypeSpecial.value.trim();
+    }
+    return briefDocSubtypeSelect.value;
+}
+
 function loadIntelIntoEditor(item, table) {
     editingIntelId = item.id;
     editingTable = table;
 
-    intelFields.title.value = item.title;
-    intelFields.summary.value = item.summary || item.executive_summary || "";
-    intelFields.details.value = item.details || item.analysis || "";
-    intelFields.region.value = item.region || item.theater || "";
-    intelFields.category.value = item.category || item.type || "";
-    const ts = (item.published_at || item.timestamp) ? String(item.published_at || item.timestamp).slice(0, 16) : "";
-    intelFields.timestamp.value = ts;
-    intelFields.sources.value = item.sources || "";
+    intelTitle.value = item.title || "";
+    intelSummary.value = item.summary || item.executive_summary || "";
+    intelDetails.value = item.details || item.analysis || "";
+    intelRegion.value = item.region || item.theater || "";
+    intelCategory.value = item.category || item.type || "";
+    const ts = (item.published_at || item.timestamp || item.updated_at) ? String(item.published_at || item.timestamp || item.updated_at).slice(0, 16) : "";
+    intelTimestamp.value = ts;
+    intelSources.value = sourceInputFromStored(item.sources || item.source_links || "");
+
     const coords = Array.isArray(item.coords) ? item.coords : null;
     const lat = item.lat != null ? item.lat : (coords ? coords[1] : "");
     const lng = item.lng != null ? item.lng : (item.long != null ? item.long : (coords ? coords[0] : ""));
-    intelFields.lat.value = lat;
-    intelFields.lng.value = lng;
-    intelFields.scope.value = table === BRIEFING_INTEL_TABLE ? "BRIEFING" : "LIVE";
-    intelFields.briefingRisk.value = normalizeRiskLevel(item.risk_level || item.risk || "medium");
-    intelFields.briefingPriority.value = normalizePriorityLevel(item.priority_level || item.priority || "medium");
-    intelFields.briefingZoom.value = item.map_zoom || item.zoom || 5;
-    intelFields.briefingPoints.value = parsePointsFromItem(item).join("\n");
-    intelFields.briefingStatus.value = item.status || "Ongoing";
-    intelFields.briefingImpactLevel.value = normalizeImpactLevel(item.impact_level || item.impact || "noise");
-    intelFields.briefingConfidence.value = item.confidence || "Medium";
-    const indicatorsRaw = item.indicators || item.indicators_to_watch || item.watch_indicators || "";
-    intelFields.briefingIndicators.value = Array.isArray(indicatorsRaw)
-        ? indicatorsRaw.join("\n")
-        : String(indicatorsRaw).split(/\r?\n|;/).map(v => v.trim()).filter(Boolean).join("\n");
-    intelFields.briefingWhyMatters.value = item.why_it_matters || item.whyItMatters || item.why || item.summary || "";
-    intelFields.briefingAssessment.value = item.assessment || item.analysis || item.details || "";
+    intelLat.value = lat;
+    intelLng.value = lng;
+
+    if (table === LIVE_INTEL_TABLE) {
+        intelScope.value = "LIVE";
+        briefingEntryKind.value = "event";
+    } else if (table === BRIEF_DOCUMENTS_TABLE) {
+        intelScope.value = "BRIEFING";
+        briefingEntryKind.value = "document";
+    } else {
+        intelScope.value = "BRIEFING";
+        briefingEntryKind.value = "event";
+    }
+
+    const points = item.key_points || item.points || item.keyPoints;
+    const indicators = item.indicators || item.indicators_to_watch || item.watch_indicators;
+
+    briefingRisk.value = normalizeRiskLevel(item.risk_level || item.risk || "medium");
+    briefingPriority.value = normalizePriorityLevel(item.priority_level || item.priority || "medium");
+    briefingZoom.value = item.map_zoom || item.zoom || 5;
+    briefingPoints.value = joinMultiline(points);
+    briefingStatus.value = normalizeStatus(item.status || "ongoing");
+    briefingImpactLevel.value = normalizeImpactLevel(item.impact_level || item.impact || "noise");
+    briefingConfidence.value = normalizeConfidence(item.confidence || "medium");
+    briefingIndicators.value = joinMultiline(indicators);
+    briefingWhyMatters.value = item.why_it_matters || item.whyItMatters || item.why || item.summary || "";
+    briefingAssessment.value = item.assessment || item.analysis || item.details || "";
+    briefingTags.value = sourceInputFromStored(item.tags);
+
+    if (table === BRIEF_DOCUMENTS_TABLE) {
+        briefDocType.value = normalizeBriefType(item.brief_type);
+        fillSubtypeOptions();
+        if (briefDocType.value === "special") {
+            briefDocSubtypeSpecial.value = item.brief_subtype || "";
+        } else {
+            briefDocSubtypeSelect.value = item.brief_subtype || briefDocSubtypeSelect.value;
+        }
+    } else {
+        briefDocType.value = "scheduled";
+        briefDocSubtypeSpecial.value = "";
+        fillSubtypeOptions();
+    }
 
     if (lng !== "" && lat !== "") {
         placeAdminMarker(Number(lng), Number(lat));
     }
+
     deleteButton.style.display = "inline-block";
     syncEditorModeUI();
 }
 
 function buildLivePayload() {
     return {
-        title: intelFields.title.value.trim(),
-        summary: intelFields.summary.value.trim(),
-        details: intelFields.details.value.trim(),
-        region: intelFields.region.value.trim(),
-        category: intelFields.category.value,
-        timestamp: new Date(intelFields.timestamp.value).toISOString(),
-        sources: intelFields.sources.value.trim(),
-        lat: parseFloat(intelFields.lat.value),
-        lng: parseFloat(intelFields.lng.value)
+        title: intelTitle.value.trim(),
+        summary: intelSummary.value.trim(),
+        details: intelDetails.value.trim(),
+        region: intelRegion.value.trim(),
+        category: intelCategory.value,
+        timestamp: new Date(intelTimestamp.value).toISOString(),
+        sources: intelSources.value.trim(),
+        lat: parseFloat(intelLat.value),
+        lng: parseFloat(intelLng.value)
     };
 }
 
-function buildBriefingPayload(isUpdate) {
-    const lat = parseFloat(intelFields.lat.value);
-    const lng = parseFloat(intelFields.lng.value);
-    const points = parsePointsFromText(intelFields.briefingPoints.value);
-    const indicators = parsePointsFromText(intelFields.briefingIndicators.value).slice(0, 4);
-    const detailsText = intelFields.details.value.trim();
-    const whyItMatters = intelFields.briefingWhyMatters.value.trim();
-    const assessment = intelFields.briefingAssessment.value.trim();
-    const publishedAt = new Date(intelFields.timestamp.value).toISOString();
+function buildEventBriefPayload(isUpdate) {
+    const lat = parseFloat(intelLat.value);
+    const lng = parseFloat(intelLng.value);
+    const points = splitMultiline(briefingPoints.value, 12);
+    const indicators = splitMultiline(briefingIndicators.value, 12);
+    const detailsText = intelDetails.value.trim();
+    const whyItMatters = briefingWhyMatters.value.trim();
+    const assessment = briefingAssessment.value.trim();
+    const publishedAt = new Date(intelTimestamp.value).toISOString();
     const updatedAt = isUpdate ? new Date().toISOString() : publishedAt;
-    const impactLevel = normalizeImpactLevel(intelFields.briefingImpactLevel.value);
-    const riskLevel = normalizeRiskLevel(intelFields.briefingRisk.value);
-    const priorityLevel = normalizePriorityLevel(intelFields.briefingPriority.value);
+    const impactLevel = normalizeImpactLevel(briefingImpactLevel.value);
+    const riskLevel = normalizeRiskLevel(briefingRisk.value);
+    const priorityLevel = normalizePriorityLevel(briefingPriority.value);
+    const sources = sourceArrayFromInput(intelSources.value);
 
     return {
-        title: intelFields.title.value.trim(),
-        summary: intelFields.summary.value.trim(),
+        title: intelTitle.value.trim(),
+        summary: intelSummary.value.trim(),
         details: detailsText,
         why_it_matters: whyItMatters,
         assessment,
         analysis: assessment || detailsText,
-        region: intelFields.region.value.trim(),
-        category: intelFields.category.value,
+        region: intelRegion.value.trim(),
+        category: intelCategory.value,
         timestamp: publishedAt,
         published_at: publishedAt,
         updated_at: updatedAt,
-        status: intelFields.briefingStatus.value || "Ongoing",
+        status: normalizeStatus(briefingStatus.value),
         impact_level: impactLevel,
-        confidence: intelFields.briefingConfidence.value || "Medium",
+        confidence: normalizeConfidence(briefingConfidence.value),
         risk_level: riskLevel,
         priority_level: priorityLevel,
         risk: riskLevel,
         priority: priorityLevel,
         points,
+        key_points: points,
         indicators,
-        sources: intelFields.sources.value.trim(),
-        source_links: intelFields.sources.value.trim(),
+        sources,
+        source_links: sources,
         lat,
         lng,
         coords: Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : null,
-        map_zoom: Math.round(parseFloat(intelFields.briefingZoom.value) || 5),
-        zoom: Math.round(parseFloat(intelFields.briefingZoom.value) || 5)
+        map_zoom: Math.round(parseFloat(briefingZoom.value) || 5),
+        zoom: Math.round(parseFloat(briefingZoom.value) || 5)
     };
 }
 
-// ===============================
-// PUBLISH / UPDATE
-// ===============================
-publishButton.addEventListener("click", async () => {
-    const table = editingTable || getSelectedTable();
-    const isBriefing = table === BRIEFING_INTEL_TABLE;
-    const payload = isBriefing ? buildBriefingPayload(Boolean(editingIntelId)) : buildLivePayload();
+function buildBriefDocumentPayload(isUpdate) {
+    const nowIso = new Date().toISOString();
+    const publishIso = intelTimestamp.value ? new Date(intelTimestamp.value).toISOString() : nowIso;
+    const briefType = normalizeBriefType(briefDocType.value);
+    const subtype = getDocumentSubtypeFromUI();
+    const points = splitMultiline(briefingPoints.value, 12);
+    const indicators = splitMultiline(briefingIndicators.value, 12);
+    const sources = sourceArrayFromInput(intelSources.value);
+    const tags = splitCommaList(briefingTags.value, 12);
+    const regionLabel = intelRegion.value.trim();
+    const regionKey = regionKeyByLabel(regionLabel);
 
-    if (!payload.title || !payload.summary) {
-        setEditorStatus("Missing required fields.");
-        return;
-    }
+    return {
+        title: intelTitle.value.trim(),
+        brief_type: briefType,
+        brief_subtype: briefType === "regional" && regionKey ? regionKey : subtype,
+        status: normalizeStatus(briefingStatus.value),
+        confidence: normalizeConfidence(briefingConfidence.value),
+        impact_level: normalizeImpactLevel(briefingImpactLevel.value),
+        risk_level: normalizeRiskLevel(briefingRisk.value),
+        priority_level: normalizePriorityLevel(briefingPriority.value),
+        region: regionLabel,
+        category: intelCategory.value || "",
+        tags,
+        summary: intelSummary.value.trim(),
+        why_it_matters: briefingWhyMatters.value.trim(),
+        details: intelDetails.value.trim(),
+        key_points: points,
+        indicators,
+        sources,
+        publish_to: ["briefing_room"],
+        updated_at: isUpdate ? nowIso : publishIso,
+        created_at: isUpdate ? undefined : publishIso
+    };
+}
 
-    if (!isBriefing && !payload.details) {
-        setEditorStatus("Missing required fields.");
-        return;
-    }
+function validatePayload(table, payload) {
+    if (!payload.title || !payload.summary) return "Missing required fields.";
 
-    if (isBriefing) {
+    if (table === LIVE_INTEL_TABLE && !payload.details) return "Missing required fields.";
+
+    if (table === BRIEFING_INTEL_TABLE) {
         const latValid = Number.isFinite(payload.lat);
         const lngValid = Number.isFinite(payload.lng);
         if (!payload.details || !latValid || !lngValid) {
-            setEditorStatus("Briefing requires details + latitude + longitude.");
-            return;
+            return "Event brief requires details + latitude + longitude.";
         }
+    }
+
+    if (table === BRIEF_DOCUMENTS_TABLE) {
+        if (!payload.brief_subtype) return "Brief document subtype is required.";
+        if (!payload.details) return "Brief document full body is required.";
+    }
+
+    return "";
+}
+
+publishButton.addEventListener("click", async () => {
+    const table = editingTable || getSelectedTable();
+    const isUpdate = Boolean(editingIntelId);
+    let payload = null;
+
+    if (table === LIVE_INTEL_TABLE) {
+        payload = buildLivePayload();
+    } else if (table === BRIEF_DOCUMENTS_TABLE) {
+        payload = buildBriefDocumentPayload(isUpdate);
+    } else {
+        payload = buildEventBriefPayload(isUpdate);
+    }
+
+    const validationError = validatePayload(table, payload);
+    if (validationError) {
+        setEditorStatus(validationError);
+        return;
     }
 
     const result = await saveWithColumnFallback(table, payload, editingIntelId);
@@ -575,12 +721,9 @@ publishButton.addEventListener("click", async () => {
 
     setEditorStatus("Saved.");
     clearForm();
-    loadIntelList();
+    await loadIntelList();
 });
 
-// ===============================
-// DELETE
-// ===============================
 deleteButton.addEventListener("click", async () => {
     if (!editingIntelId) return;
     const table = editingTable || getSelectedTable();
@@ -597,16 +740,24 @@ deleteButton.addEventListener("click", async () => {
 
     setEditorStatus("Deleted.");
     clearForm();
-    loadIntelList();
+    await loadIntelList();
 });
 
+resetFormButton.addEventListener("click", clearForm);
+intelScope.addEventListener("change", () => {
+    clearForm();
+    syncEditorModeUI();
+});
+briefingEntryKind.addEventListener("change", syncEditorModeUI);
+briefDocType.addEventListener("change", fillSubtypeOptions);
+
 // ===============================
-// AUTH: LOGIN
+// AUTH
 // ===============================
 loginButton.addEventListener("click", async () => {
     loginError.textContent = "";
     loginButton.disabled = true;
-    loginButton.textContent = "SIGNING IN…";
+    loginButton.textContent = "SIGNING IN...";
 
     const email = adminEmailInput.value.trim();
     const password = adminPasswordInput.value.trim();
@@ -624,32 +775,24 @@ loginButton.addEventListener("click", async () => {
     showAdminView(data.user);
 });
 
-// ===============================
-// AUTH: SESSION CHECK
-// ===============================
 async function checkSessionOnLoad() {
     const { data } = await supabase.auth.getSession();
     if (data.session) showAdminView(data.session.user);
 }
 
-function showAdminView(user) {
+async function showAdminView(user) {
     loginView.style.display = "none";
     adminView.style.display = "block";
     adminEmailDisplay.textContent = user.email;
     setAutoTimestamp();
+    fillSubtypeOptions();
     syncEditorModeUI();
-    loadIntelList();
+    await loadIntelList();
 }
 
-// ===============================
-// AUTH: LOGOUT
-// ===============================
 logoutLink.addEventListener("click", async () => {
     await supabase.auth.signOut();
     location.reload();
 });
 
-// ===============================
-// INIT
-// ===============================
 checkSessionOnLoad();

@@ -51,65 +51,76 @@
 
   <!-- MAIN -->
   <main class="brf-main">
+    <section class="brf-header">
+      <h1 class="brf-header__title">Briefing Room</h1>
+      <p class="brf-header__subtitle">Structured intelligence across scheduled, regional, and event-level briefs.</p>
+    </section>
 
-    <!-- HERO -->
-    <section class="brf-hero">
-      <div class="brf-hero__inner">
-        <h1 class="brf-hero__title">Briefing Room</h1>
-        <p class="brf-hero__subtitle">
-          Curated intelligence briefs for strategic awareness and decision-making.
-        </p>
-        <div class="brf-hero__divider"></div>
+    <!-- SECTION 1: STICKY FILTER BAR -->
+    <section class="brf-filter-bar">
+      <div class="brf-filter-row">
+        <input type="text" id="brf-search-input" class="brf-search-input" placeholder="Search title, summary, tags, indicators..." />
+
+        <select class="brf-select" id="brf-region-filter">
+          <option value="">All Regions</option>
+          <option value="north_america">North America</option>
+          <option value="south_america">South America</option>
+          <option value="europe">Europe</option>
+          <option value="middle_east">Middle East</option>
+          <option value="africa">Africa</option>
+          <option value="central_asia">Central Asia</option>
+          <option value="east_asia">East Asia</option>
+          <option value="south_asia">South Asia</option>
+          <option value="southeast_asia">Southeast Asia</option>
+          <option value="oceania">Oceania</option>
+          <option value="global_multi_region">Global / Multi-Region</option>
+        </select>
+
+        <select class="brf-select" id="brf-sort">
+          <option value="latest">Latest</option>
+          <option value="impact">Impact</option>
+          <option value="priority">Priority</option>
+        </select>
+      </div>
+
+      <div class="brf-filter-row brf-filter-row--chips">
+        <div class="brf-chip-group" id="topicChips">
+          <button class="brf-chip brf-chip--active" data-topic="all">All</button>
+          <button class="brf-chip" data-topic="political">Political</button>
+          <button class="brf-chip" data-topic="military">Military</button>
+          <button class="brf-chip" data-topic="economic">Economic</button>
+          <button class="brf-chip" data-topic="social">Social</button>
+          <button class="brf-chip" data-topic="grey_space">Grey Space</button>
+        </div>
+
+        <div class="brf-chip-group" id="timeWindowChips">
+          <button class="brf-chip brf-chip--active" data-window="24h">24h</button>
+          <button class="brf-chip" data-window="72h">72h</button>
+          <button class="brf-chip" data-window="7d">7d</button>
+          <button class="brf-chip" data-window="30d">30d</button>
+        </div>
       </div>
     </section>
 
-    <!-- CONTROLS -->
-    <section class="brf-controls">
-      <div class="brf-controls__inner">
-
-        <div class="brf-controls__categories">
-          <button class="brf-tab brf-tab--active" data-category="all">All</button>
-          <button class="brf-tab" data-category="military">Military</button>
-          <button class="brf-tab" data-category="political">Political</button>
-          <button class="brf-tab" data-category="social">Social</button>
-          <button class="brf-tab" data-category="economic">Economic</button>
-          
-          <button class="brf-tab" data-category="greyspace">Grey Space</button>
+    <!-- SECTION 2: BRIEF DOCUMENTS -->
+    <section class="brief-docs-section">
+      <div class="section-header">
+        <h2>Brief Documents</h2>
+        <div class="segmented-control" id="docTypeTabs">
+          <button class="segmented-control__btn segmented-control__btn--active" data-doc-type="scheduled">Scheduled Briefs</button>
+          <button class="segmented-control__btn" data-doc-type="regional">Regional Briefings</button>
+          <button class="segmented-control__btn" data-doc-type="special">Special Briefs</button>
         </div>
-
-        <div class="brf-controls__filters">
-          <select class="brf-select" id="brf-region-filter">
-            <option value="">All Regions</option>
-            <option>North America</option>
-            <option>South America</option>
-            <option>Europe</option>
-            <option>Middle East</option>
-            <option>Africa</option>
-            <option>Central Asia</option>
-            <option>East Asia</option>
-            <option>South Asia</option>
-            <option>Southeast Asia</option>
-            <option>Oceania</option>
-            <option>Global / Multi-Region</option>
-          </select>
-
-          <div class="brf-search">
-            <input type="text" id="brf-search-input" class="brf-search__input" placeholder="Search briefs..." />
-          </div>
-
-          <select class="brf-select" id="brf-sort">
-            <option value="latest">Latest</option>
-            <option value="risk">Highest risk</option>
-            <option value="relevance">Most relevant</option>
-          </select>
-        </div>
-
       </div>
+      <div class="brief-doc-grid" id="briefDocGrid"></div>
     </section>
 
-    <!-- GRID -->
-    <section class="brf-grid">
-      <div class="brf-grid__inner" id="brf-grid"></div>
+    <!-- SECTION 3: EVENT BRIEFS FEED -->
+    <section class="event-briefs-section">
+      <div class="section-header">
+        <h2>Event Briefs</h2>
+      </div>
+      <div class="event-feed-grid" id="eventBriefGrid"></div>
     </section>
 
   </main>

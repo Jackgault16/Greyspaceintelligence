@@ -3,6 +3,10 @@ html {
     scroll-behavior: smooth;
 }
 
+:root {
+    --home-map-height: clamp(420px, 64vh, 780px);
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -163,7 +167,7 @@ body {
 
 /* ========== MAP ZONE ========== */
 .map-zone {
-    height: 530px;
+    height: var(--home-map-height);
     background: #111;
     border-bottom: 1px solid #222;
     position: relative;
@@ -418,7 +422,7 @@ body {
 .category-political { background: #003366; }
 .category-economic { background: #006600; }
 .category-social { background: #444444; }
-.category-grey\ space { background: #555555; }
+.category-grey-space { background: #555555; }
 
 /* EXPANDED SECTION */
 .intel-expanded {
@@ -479,6 +483,10 @@ body {
 
 /* ========== RESPONSIVE (TABLET/MOBILE) ========== */
 @media (max-width: 1024px) {
+    :root {
+        --home-map-height: clamp(380px, 58vh, 620px);
+    }
+
     .title-header h1 {
         font-size: 24px;
         letter-spacing: 3px;
@@ -494,10 +502,6 @@ body {
         gap: 24px;
         padding: 0 20px;
         box-sizing: border-box;
-    }
-
-    .map-zone {
-        height: 480px;
     }
 
     .timeline-container {
@@ -547,6 +551,10 @@ body {
 }
 
 @media (max-width: 768px) {
+    :root {
+        --home-map-height: clamp(320px, 52vh, 500px);
+    }
+
     .menu-button {
         top: 14px;
         left: 14px;
@@ -583,10 +591,6 @@ body {
     .nav-links li {
         font-size: 13px;
         letter-spacing: 1.5px;
-    }
-
-    .map-zone {
-        height: 420px;
     }
 
     .timeline-labels {
@@ -631,6 +635,10 @@ body {
 }
 
 @media (max-width: 480px) {
+    :root {
+        --home-map-height: clamp(300px, 48svh, 420px);
+    }
+
     .title-header h1 {
         font-size: 18px;
         letter-spacing: 1.5px;

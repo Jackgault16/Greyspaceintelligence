@@ -18,7 +18,8 @@ function loadPublicConfigSync() {
         SUPABASE_URL: "",
         SUPABASE_ANON_KEY: "",
         LIVE_INTEL_TABLE: "live_intel",
-        BRIEFING_INTEL_TABLE: "briefing_room"
+        BRIEFING_INTEL_TABLE: "briefing_room",
+        BRIEF_DOCUMENTS_TABLE: "brief_documents"
     };
 }
 
@@ -30,6 +31,7 @@ const LIVE_INTEL_TABLE = PUBLIC_CONFIG.LIVE_INTEL_TABLE || "live_intel";
 const BRIEFING_INTEL_TABLE_RAW = PUBLIC_CONFIG.BRIEFING_INTEL_TABLE || "briefing_room";
 const BRIEFING_INTEL_TABLE =
     BRIEFING_INTEL_TABLE_RAW === LIVE_INTEL_TABLE ? "briefing_room" : BRIEFING_INTEL_TABLE_RAW;
+const BRIEF_DOCUMENTS_TABLE = PUBLIC_CONFIG.BRIEF_DOCUMENTS_TABLE || "brief_documents";
 
 if (!MAPBOX_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error("Missing public config values. Set MAPBOX_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY in Cloudflare.");
@@ -48,19 +50,26 @@ async function fetchBriefingIntel({ limit = 50, days = 30 } = {}) {
     return fetchIntelByTable(BRIEFING_INTEL_TABLE, { limit, days });
 }
 
-async function fetchIntelByTable(table, { limit = 50, days = 30 } = {}) {
+async function fetchBriefDocuments({ limit = 100, days = 3650 } = {}) {
+    return fetchIntelByTable(BRIEF_DOCUMENTS_TABLE, { limit, days, timestampColumn: "updated_at", includeAllWhenNoTimestamp: true });
+}
+
+async function fetchIntelByTable(table, { limit = 50, days = 30, timestampColumn = "timestamp", includeAllWhenNoTimestamp = false } = {}) {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
         return [];
     }
 
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-    const url =
+    let url =
         `${SUPABASE_URL}/rest/v1/${table}` +
         `?select=*` +
-        `&timestamp=gte.${encodeURIComponent(since)}` +
-        `&order=timestamp.desc` +
+        `&order=${timestampColumn}.desc` +
         `&limit=${limit}`;
+
+    if (!includeAllWhenNoTimestamp) {
+        url += `&${timestampColumn}=gte.${encodeURIComponent(since)}`;
+    }
 
     const res = await fetch(url, {
         headers: {

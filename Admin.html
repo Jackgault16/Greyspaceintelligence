@@ -389,6 +389,41 @@
                 </div>
 
                 <div id="briefingFields" style="display:none;">
+                    <div class="admin-subsection">
+                        <h3>BRIEF DOCUMENT MODE</h3>
+                        <div class="admin-row">
+                            <div>
+                                <label for="briefingEntryKind">Entry Kind</label>
+                                <select id="briefingEntryKind">
+                                    <option value="event" selected>Event Brief</option>
+                                    <option value="document">Brief Document</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="briefDocumentTypeFields" style="display:none;">
+                            <div class="admin-row">
+                                <div>
+                                    <label for="briefDocType">Brief Type</label>
+                                    <select id="briefDocType">
+                                        <option value="scheduled" selected>Scheduled</option>
+                                        <option value="regional">Regional</option>
+                                        <option value="special">Special</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="briefDocSubtypeSelect">Subtype</label>
+                                    <select id="briefDocSubtypeSelect"></select>
+                                </div>
+                            </div>
+                            <div id="briefDocSubtypeSpecialWrap" style="display:none;">
+                                <label for="briefDocSubtypeSpecial">Special Subtype</label>
+                                <input id="briefDocSubtypeSpecial" type="text" placeholder="e.g. Election Watch">
+                            </div>
+                            <label for="briefingTags">Tags (comma-separated)</label>
+                            <input id="briefingTags" type="text" placeholder="e.g. sanctions, cyber, election">
+                        </div>
+                    </div>
+
                     <label for="briefingWhyMatters">Why It Matters</label>
                     <textarea id="briefingWhyMatters" placeholder="Strategic implications, affected actors, second-order effects"></textarea>
 
@@ -399,9 +434,9 @@
                         <div>
                             <label for="briefingStatus">Status</label>
                             <select id="briefingStatus">
-                                <option value="Breaking">Breaking</option>
-                                <option value="Developing">Developing</option>
-                                <option value="Ongoing" selected>Ongoing</option>
+                                <option value="ongoing" selected>ongoing</option>
+                                <option value="developing">developing</option>
+                                <option value="resolved">resolved</option>
                             </select>
                         </div>
                     </div>
@@ -410,9 +445,9 @@
                         <div>
                             <label for="briefingConfidence">Confidence</label>
                             <select id="briefingConfidence">
-                                <option value="Low">Low</option>
-                                <option value="Medium" selected>Medium</option>
-                                <option value="High">High</option>
+                                <option value="low">low</option>
+                                <option value="medium" selected>medium</option>
+                                <option value="high">high</option>
                             </select>
                         </div>
                     </div>
@@ -496,8 +531,11 @@
                 <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:6px 0 4px;">LIVE</div>
                 <div class="intel-list" id="liveIntelList" style="max-height:200px;"></div>
 
-                <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">BRIEFING ROOM</div>
+                <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">EVENT BRIEFS</div>
                 <div class="intel-list" id="briefingIntelList" style="max-height:200px;"></div>
+
+                <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">BRIEF DOCUMENTS</div>
+                <div class="intel-list" id="briefDocumentsList" style="max-height:200px;"></div>
             </div>
 
         </div>

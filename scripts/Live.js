@@ -27,6 +27,13 @@ function buildSourcesHTML(item) {
         .join("<br>");
 }
 
+function categoryClassName(rawCategory) {
+    return String(rawCategory || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "-");
+}
+
 function matchesFilters(item, filterValues) {
     const region = item.region?.toLowerCase() || "";
     const category = item.category?.toLowerCase() || "";
@@ -48,6 +55,7 @@ async function renderIntel() {
             if (!matchesFilters(item, filterValues)) return;
 
             const category = item.category?.toLowerCase() || "";
+            const categoryClass = categoryClassName(item.category);
             const card = document.createElement("div");
             card.className = "feed-item";
 
@@ -56,7 +64,7 @@ async function renderIntel() {
             card.innerHTML = `
                 <h3>
                     ${item.title || "Untitled"}
-                    <span class="category-tag category-${category || "none"}">
+                    <span class="category-tag category-${categoryClass || "none"}">
                         ${item.category || ""}
                     </span>
                 </h3>

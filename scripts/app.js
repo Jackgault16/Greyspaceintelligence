@@ -318,6 +318,31 @@ if (timelineExists) {
 
 const intelMapContainer = document.getElementById("intel-map");
 let intelMap = null;
+let mapResizeTimer = null;
+
+function fitHomeMapToViewport() {
+    if (!intelMap) return;
+
+    const isSmallScreen = window.matchMedia("(max-width: 768px)").matches;
+    const horizontalPadding = isSmallScreen ? 8 : 24;
+    const verticalPadding = isSmallScreen ? 16 : 28;
+
+    intelMap.fitBounds(
+        [
+            [-179.9, -58],
+            [179.9, 82]
+        ],
+        {
+            padding: {
+                top: verticalPadding,
+                bottom: verticalPadding,
+                left: horizontalPadding,
+                right: horizontalPadding
+            },
+            duration: 0
+        }
+    );
+}
 
 if (intelMapContainer && typeof mapboxgl !== "undefined") {
     mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -341,8 +366,19 @@ if (intelMapContainer && typeof mapboxgl !== "undefined") {
     intelMap.touchZoomRotate.disableRotation();
 
     intelMap.on("load", () => {
+        fitHomeMapToViewport();
+
         // Once map is ready, load events from Supabase
         loadMapEventsFromSupabase();
+    });
+
+    window.addEventListener("resize", () => {
+        if (!intelMap) return;
+        if (mapResizeTimer) clearTimeout(mapResizeTimer);
+        mapResizeTimer = setTimeout(() => {
+            intelMap.resize();
+            fitHomeMapToViewport();
+        }, 150);
     });
 }
 
