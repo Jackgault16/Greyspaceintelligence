@@ -25,7 +25,8 @@
     transition: transform 0.22s ease;
     display: flex;
     flex-direction: column;
-    z-index: 20;
+    z-index: 1200;
+    pointer-events: auto;
 }
 
 .dossier-panel.open {
