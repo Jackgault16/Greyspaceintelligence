@@ -29,13 +29,28 @@ ORDER BY ?countryLabel
 
 export const onRequestPost = async ({ request, env }) => {
   try {
-    const role = extractJwtRole(request);
-    if (role !== "admin") {
+    const token = extractBearerToken(request);
+    if (!token) {
       return json({ error: "Forbidden" }, 403);
     }
 
-    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-      return json({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY." }, 500);
+    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || !env.SUPABASE_ANON_KEY) {
+      return json({ error: "Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY." }, 500);
+    }
+
+    const user = await getUserFromAccessToken(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, token);
+    if (!user) {
+      return json({ error: "Forbidden" }, 403);
+    }
+
+    // Optional allowlist: set MAP_DATA_ADMIN_EMAILS="a@x.com,b@y.com"
+    const allowedEmailsRaw = String(env.MAP_DATA_ADMIN_EMAILS || "").trim();
+    if (allowedEmailsRaw) {
+      const allowed = allowedEmailsRaw.split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
+      const email = String(user.email || "").toLowerCase();
+      if (!allowed.includes(email)) {
+        return json({ error: "Forbidden" }, 403);
+      }
     }
 
     const supabase = createSupabaseRestClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -100,36 +115,29 @@ export const onRequestPost = async ({ request, env }) => {
       profilesCreated: createProfiles.length
     });
   } catch (err) {
-    return json({ error: String(err?.message || err) }, 500);
+      return json({ error: String(err?.message || err) }, 500);
   }
 };
 
-function extractJwtRole(request) {
+function extractBearerToken(request) {
   const auth = request.headers.get("authorization") || "";
   const m = auth.match(/^Bearer\s+(.+)$/i);
   if (!m) return "";
-  const token = m[1];
-  const parts = token.split(".");
-  if (parts.length < 2) return "";
-  const payloadJson = decodeBase64Url(parts[1]);
-  if (!payloadJson) return "";
-  try {
-    const payload = JSON.parse(payloadJson);
-    return String(payload?.role || payload?.app_metadata?.role || "");
-  } catch (_) {
-    return "";
-  }
+  return m[1];
 }
 
-function decodeBase64Url(input) {
+async function getUserFromAccessToken(url, anonKey, token) {
   try {
-    const pad = "=".repeat((4 - (input.length % 4)) % 4);
-    const b64 = (input + pad).replace(/-/g, "+").replace(/_/g, "/");
-    const binary = atob(b64);
-    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
+    const res = await fetch(`${url}/auth/v1/user`, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${token}`
+      }
+    });
+    if (!res.ok) return null;
+    return await res.json();
   } catch (_) {
-    return "";
+    return null;
   }
 }
 
