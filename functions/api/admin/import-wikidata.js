@@ -34,11 +34,11 @@ export const onRequestPost = async ({ request, env }) => {
       return json({ error: "Forbidden" }, 403);
     }
 
-    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || !env.SUPABASE_ANON_KEY) {
-      return json({ error: "Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY." }, 500);
+    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+      return json({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY." }, 500);
     }
 
-    const user = await getUserFromAccessToken(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, token);
+    const user = await getUserFromAccessToken(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, token);
     if (!user) {
       return json({ error: "Forbidden" }, 403);
     }
@@ -126,11 +126,11 @@ function extractBearerToken(request) {
   return m[1];
 }
 
-async function getUserFromAccessToken(url, anonKey, token) {
+async function getUserFromAccessToken(url, apiKey, token) {
   try {
     const res = await fetch(`${url}/auth/v1/user`, {
       headers: {
-        apikey: anonKey,
+        apikey: apiKey,
         Authorization: `Bearer ${token}`
       }
     });
