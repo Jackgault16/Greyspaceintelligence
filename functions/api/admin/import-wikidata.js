@@ -20,20 +20,8 @@ SELECT ?country ?iso2 ?countryLabel ?capitalLabel ?continentLabel ?coord WHERE {
 ORDER BY ?countryLabel
 `;
 
-const ENRICH_QUERY = `
-SELECT ?iso2
-       (SAMPLE(?governmentLabel) AS ?governmentLabel)
-       (SAMPLE(?headOfStateLabel) AS ?headOfStateLabel)
-       (SAMPLE(?headOfGovernmentLabel) AS ?headOfGovernmentLabel)
-       (SAMPLE(?currencyLabel) AS ?currencyLabel)
-       (MAX(?population) AS ?population)
-       (MAX(?gdp) AS ?gdp)
-       (MAX(?gdpPerCapita) AS ?gdpPerCapita)
-       (MAX(?lifeExpectancy) AS ?lifeExpectancy)
-       (MAX(?hdi) AS ?hdi)
-       (MAX(?militaryPersonnel) AS ?militaryPersonnel)
-       (MAX(?defenseSpending) AS ?defenseSpending)
-WHERE {
+const ENRICH_TEXT_QUERY = `
+SELECT ?iso2 ?governmentLabel ?headOfStateLabel ?headOfGovernmentLabel ?currencyLabel WHERE {
   ?country wdt:P297 ?iso2 .
   FILTER(STRLEN(?iso2) = 2)
   FILTER NOT EXISTS { ?country wdt:P576 ?dissolved }
@@ -41,6 +29,15 @@ WHERE {
   OPTIONAL { ?country wdt:P35 ?headOfState . }
   OPTIONAL { ?country wdt:P6 ?headOfGovernment . }
   OPTIONAL { ?country wdt:P38 ?currency . }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+`;
+
+const ENRICH_NUMERIC_QUERY = `
+SELECT ?iso2 ?population ?gdp ?gdpPerCapita ?lifeExpectancy ?hdi ?militaryPersonnel ?defenseSpending WHERE {
+  ?country wdt:P297 ?iso2 .
+  FILTER(STRLEN(?iso2) = 2)
+  FILTER NOT EXISTS { ?country wdt:P576 ?dissolved }
   OPTIONAL { ?country wdt:P1082 ?population . }
   OPTIONAL { ?country wdt:P2131 ?gdp . }
   OPTIONAL { ?country wdt:P2132 ?gdpPerCapita . }
@@ -48,23 +45,29 @@ WHERE {
   OPTIONAL { ?country wdt:P1081 ?hdi . }
   OPTIONAL { ?country wdt:P1083 ?militaryPersonnel . }
   OPTIONAL { ?country wdt:P2206 ?defenseSpending . }
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 }
-GROUP BY ?iso2
 `;
 
 export const onRequestPost = async ({ request, env }) => {
+  let stage = "init";
   try {
+    stage = "auth_token";
     const token = extractBearerToken(request);
     if (!token) {
       return json({ error: "Forbidden" }, 403);
     }
 
+    stage = "env_check";
     if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
       return json({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY." }, 500);
     }
 
-    const user = await getUserFromAccessToken(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, token);
+    stage = "auth_user";
+    const user = await getUserFromAccessToken(
+      env.SUPABASE_URL,
+      env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY,
+      token
+    );
     if (!user) {
       return json({ error: "Forbidden" }, 403);
     }
@@ -81,10 +84,13 @@ export const onRequestPost = async ({ request, env }) => {
 
     const supabase = createSupabaseRestClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
+    stage = "wikidata_countries";
     const rows = await fetchWikidataCountries();
+    stage = "wikidata_enrichment";
     const enrichMap = await fetchWikidataEnrichment();
     const iso2List = rows.map(r => r.iso2);
 
+    stage = "read_existing_countries";
     const existingCountriesRes = await supabase.selectAll("countries", "iso2,name,capital,region");
     if (existingCountriesRes.error) return json({ error: existingCountriesRes.error }, 500);
     const existingCountries = (existingCountriesRes.data || []).filter(r => iso2List.includes(String(r.iso2 || "").toUpperCase()));
@@ -104,6 +110,7 @@ export const onRequestPost = async ({ request, env }) => {
     const countriesUpdated = baseCountryRows.length - countriesInserted;
 
     if (baseCountryRows.length) {
+      stage = "upsert_countries";
       const withAllCentroidVariants = baseCountryRows.map((r, i) => ({
         ...r,
         centroid: toCentroidArray(rows[i].centroid_lng, rows[i].centroid_lat),
@@ -133,6 +140,7 @@ export const onRequestPost = async ({ request, env }) => {
       if (upsertCountriesRes.error) return json({ error: upsertCountriesRes.error }, 500);
     }
 
+    stage = "read_existing_profiles";
     const existingProfilesRes = await supabase.selectAll("country_profiles", "id,iso2,category,metrics,narrative,sources");
     if (existingProfilesRes.error) return json({ error: existingProfilesRes.error }, 500);
     const existingProfiles = (existingProfilesRes.data || []).filter(p => iso2List.includes(String(p.iso2 || "").toUpperCase()));
@@ -154,10 +162,12 @@ export const onRequestPost = async ({ request, env }) => {
     }
 
     if (createProfiles.length) {
+      stage = "upsert_new_profiles";
       const upsertProfilesRes = await supabase.upsert("country_profiles", createProfiles, "iso2,category");
       if (upsertProfilesRes.error) return json({ error: upsertProfilesRes.error }, 500);
     }
 
+    stage = "read_all_profiles";
     const allProfilesRes = await supabase.selectAll("country_profiles", "id,iso2,category,metrics,narrative,sources");
     if (allProfilesRes.error) return json({ error: allProfilesRes.error }, 500);
     const allProfiles = (allProfilesRes.data || []).filter(p => iso2List.includes(String(p.iso2 || "").toUpperCase()));
@@ -206,6 +216,7 @@ export const onRequestPost = async ({ request, env }) => {
     }
 
     if (enrichUpdates.length) {
+      stage = "upsert_enriched_profiles";
       const enrichRes = await supabase.upsert("country_profiles", enrichUpdates, "id");
       if (enrichRes.error) return json({ error: enrichRes.error }, 500);
     }
@@ -218,7 +229,7 @@ export const onRequestPost = async ({ request, env }) => {
       profilesEnriched: enrichUpdates.length
     });
   } catch (err) {
-      return json({ error: String(err?.message || err) }, 500);
+      return json({ error: String(err?.message || err), stage }, 500);
   }
 };
 
@@ -245,16 +256,7 @@ async function getUserFromAccessToken(url, apiKey, token) {
 }
 
 async function fetchWikidataCountries() {
-  const endpoint = "https://query.wikidata.org/sparql";
-  const url = `${endpoint}?query=${encodeURIComponent(SPARQL_QUERY)}&format=json`;
-  const res = await fetch(url, {
-    headers: {
-      Accept: "application/sparql-results+json",
-      "User-Agent": "GreySpaceWikidataImporter/1.0 (admin api)"
-    }
-  });
-  if (!res.ok) throw new Error(`Wikidata query failed: ${res.status}`);
-  const json = await res.json();
+  const json = await fetchSparqlJson(SPARQL_QUERY, "countries");
   const bindings = json?.results?.bindings || [];
   const unique = new Map();
   for (const row of bindings) {
@@ -287,35 +289,66 @@ async function fetchWikidataCountries() {
 }
 
 async function fetchWikidataEnrichment() {
-  const endpoint = "https://query.wikidata.org/sparql";
-  const url = `${endpoint}?query=${encodeURIComponent(ENRICH_QUERY)}&format=json`;
-  const res = await fetch(url, {
-    headers: {
-      Accept: "application/sparql-results+json",
-      "User-Agent": "GreySpaceWikidataImporter/1.0 (admin api phase2)"
-    }
-  });
-  if (!res.ok) throw new Error(`Wikidata enrichment query failed: ${res.status}`);
-  const jsonData = await res.json();
+  const textJson = await fetchSparqlJson(ENRICH_TEXT_QUERY, "enrich_text");
+  const numericJson = await fetchSparqlJson(ENRICH_NUMERIC_QUERY, "enrich_numeric");
   const out = new Map();
-  for (const row of jsonData?.results?.bindings || []) {
+  for (const row of textJson?.results?.bindings || []) {
     const iso2 = String(row?.iso2?.value || "").trim().toUpperCase();
     if (!/^[A-Z]{2}$/.test(iso2)) continue;
+    const current = out.get(iso2) || {};
     out.set(iso2, {
-      governmentLabel: normalizeOptional(row?.governmentLabel?.value),
-      headOfStateLabel: normalizeOptional(row?.headOfStateLabel?.value),
-      headOfGovernmentLabel: normalizeOptional(row?.headOfGovernmentLabel?.value),
-      currencyLabel: normalizeOptional(row?.currencyLabel?.value),
-      population: toNum(row?.population?.value),
-      gdp: toNum(row?.gdp?.value),
-      gdpPerCapita: toNum(row?.gdpPerCapita?.value),
-      lifeExpectancy: toNum(row?.lifeExpectancy?.value),
-      hdi: toNum(row?.hdi?.value),
-      militaryPersonnel: toNum(row?.militaryPersonnel?.value),
-      defenseSpending: toNum(row?.defenseSpending?.value)
+      ...current,
+      governmentLabel: current.governmentLabel || normalizeOptional(row?.governmentLabel?.value),
+      headOfStateLabel: current.headOfStateLabel || normalizeOptional(row?.headOfStateLabel?.value),
+      headOfGovernmentLabel: current.headOfGovernmentLabel || normalizeOptional(row?.headOfGovernmentLabel?.value),
+      currencyLabel: current.currencyLabel || normalizeOptional(row?.currencyLabel?.value),
+      population: current.population ?? null,
+      gdp: current.gdp ?? null,
+      gdpPerCapita: current.gdpPerCapita ?? null,
+      lifeExpectancy: current.lifeExpectancy ?? null,
+      hdi: current.hdi ?? null,
+      militaryPersonnel: current.militaryPersonnel ?? null,
+      defenseSpending: current.defenseSpending ?? null
+    });
+  }
+
+  for (const row of numericJson?.results?.bindings || []) {
+    const iso2 = String(row?.iso2?.value || "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(iso2)) continue;
+    const current = out.get(iso2) || {};
+    out.set(iso2, {
+      governmentLabel: current.governmentLabel || null,
+      headOfStateLabel: current.headOfStateLabel || null,
+      headOfGovernmentLabel: current.headOfGovernmentLabel || null,
+      currencyLabel: current.currencyLabel || null,
+      population: maxNum(current.population, toNum(row?.population?.value)),
+      gdp: maxNum(current.gdp, toNum(row?.gdp?.value)),
+      gdpPerCapita: maxNum(current.gdpPerCapita, toNum(row?.gdpPerCapita?.value)),
+      lifeExpectancy: maxNum(current.lifeExpectancy, toNum(row?.lifeExpectancy?.value)),
+      hdi: maxNum(current.hdi, toNum(row?.hdi?.value)),
+      militaryPersonnel: maxNum(current.militaryPersonnel, toNum(row?.militaryPersonnel?.value)),
+      defenseSpending: maxNum(current.defenseSpending, toNum(row?.defenseSpending?.value))
     });
   }
   return out;
+}
+
+async function fetchSparqlJson(query, label = "query", retries = 2) {
+  const endpoint = "https://query.wikidata.org/sparql";
+  let lastErr = "";
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const url = `${endpoint}?query=${encodeURIComponent(query)}&format=json`;
+    const headers = {
+      Accept: "application/sparql-results+json",
+      "User-Agent": `GreySpaceWikidataImporter/1.0 (${label})`
+    };
+    const res = await fetch(url, { headers });
+    if (res.ok) return await res.json();
+    lastErr = `${res.status} ${await res.text()}`;
+    if (![429, 500, 502, 503, 504].includes(res.status) || attempt === retries) break;
+    await sleep(350 * (attempt + 1));
+  }
+  throw new Error(`Wikidata ${label} failed: ${lastErr.slice(0, 220)}`);
 }
 
 function parseWktPoint(input) {
@@ -332,6 +365,17 @@ function normalizeOptional(v) {
 function toNum(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function maxNum(a, b) {
+  const av = Number(a);
+  const bv = Number(b);
+  const hasA = Number.isFinite(av);
+  const hasB = Number.isFinite(bv);
+  if (hasA && hasB) return Math.max(av, bv);
+  if (hasA) return av;
+  if (hasB) return bv;
+  return null;
 }
 
 function formatInt(v) {
@@ -418,6 +462,10 @@ function json(data, status = 200) {
     status,
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }
   });
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function createSupabaseRestClient(url, serviceRoleKey) {

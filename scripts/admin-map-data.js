@@ -210,9 +210,17 @@ async function runWikidataBootstrap() {
         ...(token ? { authorization: `Bearer ${token}` } : {})
       }
     });
-    const json = await res.json();
+    const raw = await res.text();
+    let json = {};
+    try {
+      json = raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      json = { error: raw || "Unknown server error" };
+    }
     if (!res.ok) {
-      statusEl.textContent = `Wikidata import failed: ${json?.error || "Unknown error"}`;
+      const stage = json?.stage ? ` (stage: ${json.stage})` : "";
+      statusEl.textContent = `Wikidata import failed [${res.status}]${stage}: ${json?.error || "Unknown error"}`;
+      console.error("Wikidata import failed", { status: res.status, body: json, raw });
       return;
     }
     statusEl.textContent = `Wikidata import complete: ${json.countriesProcessed} countries (${json.countriesInserted} inserted, ${json.countriesUpdated} updated), ${json.profilesCreated} profiles created, ${json.profilesEnriched || 0} profiles enriched.`;
