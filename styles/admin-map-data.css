@@ -38,6 +38,43 @@ label {
   margin: 6px 0 4px;
 }
 
+.country-picker {
+  position: relative;
+}
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #2a3348;
+  border-radius: 8px;
+  background: #0c1423;
+  z-index: 1400;
+  display: none;
+}
+
+.search-results.open {
+  display: block;
+}
+
+.search-item {
+  padding: 8px 10px;
+  border-bottom: 1px solid #1f2a40;
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+
+.search-item:last-child {
+  border-bottom: none;
+}
+
+.search-item:hover {
+  background: #18243f;
+}
+
 input, select, textarea, button {
   width: 100%;
   box-sizing: border-box;

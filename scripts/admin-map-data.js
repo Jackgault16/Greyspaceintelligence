@@ -8,7 +8,7 @@ const userLabel = document.getElementById("mapAdminUser");
 const logoutBtn = document.getElementById("mapAdminLogout");
 
 const countryPickerInput = document.getElementById("countryPickerInput");
-const countryOptions = document.getElementById("countryOptions");
+const countrySearchResults = document.getElementById("countrySearchResults");
 const categoryTabs = document.getElementById("categoryTabs");
 const activeCategoryLabel = document.getElementById("activeCategoryLabel");
 const editorStatusBadge = document.getElementById("editorStatusBadge");
@@ -116,6 +116,13 @@ countryPickerInput?.addEventListener("change", () => {
   if (!iso) return;
   trySwitch(() => setSelectedCountry(iso));
 });
+countryPickerInput?.addEventListener("input", renderCountrySearchResults);
+countryPickerInput?.addEventListener("focus", renderCountrySearchResults);
+document.addEventListener("click", e => {
+  if (!countrySearchResults) return;
+  if (e.target === countryPickerInput || countrySearchResults.contains(e.target)) return;
+  countrySearchResults.classList.remove("open");
+});
 
 categoryTabs?.addEventListener("click", e => {
   const btn = e.target.closest("button[data-category]");
@@ -210,15 +217,50 @@ async function loadCountries() {
     return;
   }
   countries = data || [];
-  countryOptions.innerHTML = countries.map(c => `<option value="${escapeHtml(c.name || c.iso2)} (${escapeHtml(c.iso2)})"></option>`).join("");
+  renderCountrySearchResults();
 }
 
 function parseIsoFromPicker(value) {
   const text = String(value || "");
   const match = text.match(/\(([A-Za-z]{2})\)\s*$/);
   if (match) return match[1].toUpperCase();
-  const direct = countries.find(c => c.iso2 === text.toUpperCase() || (c.name || "").toLowerCase() === text.toLowerCase());
+  const direct = countries.find(c =>
+    c.iso2 === text.toUpperCase() ||
+    (c.name || "").toLowerCase() === text.toLowerCase() ||
+    `${c.name || ""} (${c.iso2 || ""})`.toLowerCase() === text.toLowerCase()
+  );
   return direct?.iso2 || "";
+}
+
+function renderCountrySearchResults() {
+  if (!countrySearchResults) return;
+  const q = String(countryPickerInput?.value || "").trim().toLowerCase();
+  const rows = countries
+    .filter(c => {
+      const hay = `${c.name || ""} ${c.iso2 || ""} ${c.iso3 || ""}`.toLowerCase();
+      return !q || hay.includes(q);
+    })
+    .slice(0, 80);
+
+  if (!rows.length) {
+    countrySearchResults.innerHTML = `<div class="search-item">No matches</div>`;
+    countrySearchResults.classList.add("open");
+    return;
+  }
+
+  countrySearchResults.innerHTML = rows
+    .map(c => `<div class="search-item" data-iso2="${escapeAttr(c.iso2)}">${escapeHtml(c.name || c.iso2)} (${escapeHtml(c.iso2)})</div>`)
+    .join("");
+  countrySearchResults.classList.add("open");
+  countrySearchResults.querySelectorAll(".search-item[data-iso2]").forEach(el => {
+    el.addEventListener("click", () => {
+      const iso = el.getAttribute("data-iso2");
+      if (!iso) return;
+      countryPickerInput.value = `${countries.find(c => c.iso2 === iso)?.name || iso} (${iso})`;
+      countrySearchResults.classList.remove("open");
+      trySwitch(() => setSelectedCountry(iso));
+    });
+  });
 }
 
 async function setSelectedCountry(iso2) {

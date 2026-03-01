@@ -32,15 +32,8 @@ const CATEGORIES: Category[] = ["political", "military", "economic", "social", "
 const SPARQL_QUERY = `
 SELECT ?country ?iso2 ?countryLabel ?capitalLabel ?continentLabel ?coord WHERE {
   ?country wdt:P297 ?iso2 .
-  VALUES ?class {
-    wd:Q6256
-    wd:Q3624078
-    wd:Q161243
-    wd:Q3336843
-    wd:Q82794
-    wd:Q46395
-  }
-  ?country wdt:P31/wdt:P279* ?class .
+  FILTER(STRLEN(?iso2) = 2)
+  FILTER NOT EXISTS { ?country wdt:P576 ?dissolved }
   OPTIONAL { ?country wdt:P36 ?capital . }
   OPTIONAL { ?country wdt:P30 ?continent . }
   OPTIONAL { ?country wdt:P625 ?coord . }
@@ -52,16 +45,30 @@ ORDER BY ?countryLabel
 const ENRICH_QUERY = `
 SELECT ?iso2
        (SAMPLE(?governmentLabel) AS ?governmentLabel)
+       (SAMPLE(?headOfStateLabel) AS ?headOfStateLabel)
+       (SAMPLE(?headOfGovernmentLabel) AS ?headOfGovernmentLabel)
+       (SAMPLE(?currencyLabel) AS ?currencyLabel)
        (MAX(?population) AS ?population)
        (MAX(?gdp) AS ?gdp)
+       (MAX(?gdpPerCapita) AS ?gdpPerCapita)
        (MAX(?lifeExpectancy) AS ?lifeExpectancy)
+       (MAX(?hdi) AS ?hdi)
+       (MAX(?militaryPersonnel) AS ?militaryPersonnel)
        (MAX(?defenseSpending) AS ?defenseSpending)
 WHERE {
   ?country wdt:P297 ?iso2 .
+  FILTER(STRLEN(?iso2) = 2)
+  FILTER NOT EXISTS { ?country wdt:P576 ?dissolved }
   OPTIONAL { ?country wdt:P122 ?government . }
+  OPTIONAL { ?country wdt:P35 ?headOfState . }
+  OPTIONAL { ?country wdt:P6 ?headOfGovernment . }
+  OPTIONAL { ?country wdt:P38 ?currency . }
   OPTIONAL { ?country wdt:P1082 ?population . }
   OPTIONAL { ?country wdt:P2131 ?gdp . }
+  OPTIONAL { ?country wdt:P2132 ?gdpPerCapita . }
   OPTIONAL { ?country wdt:P2250 ?lifeExpectancy . }
+  OPTIONAL { ?country wdt:P1081 ?hdi . }
+  OPTIONAL { ?country wdt:P1083 ?militaryPersonnel . }
   OPTIONAL { ?country wdt:P2206 ?defenseSpending . }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 }
@@ -219,15 +226,21 @@ export async function importWikidataCountries(supabase: SupabaseClient): Promise
 
     if (category === "political") {
       changed ||= fillBlank(nextMetrics, "Government", enrich.governmentLabel);
+      changed ||= fillBlank(nextMetrics, "Head of state", enrich.headOfStateLabel);
+      changed ||= fillBlank(nextMetrics, "Head of government", enrich.headOfGovernmentLabel);
     }
     if (category === "economic") {
       changed ||= fillBlank(nextMetrics, "GDP", formatMoney(enrich.gdp));
+      changed ||= fillBlank(nextMetrics, "GDP per capita", formatMoney(enrich.gdpPerCapita));
+      changed ||= fillBlank(nextMetrics, "Currency", enrich.currencyLabel);
     }
     if (category === "social") {
       changed ||= fillBlank(nextMetrics, "Population", formatInt(enrich.population));
       changed ||= fillBlank(nextMetrics, "Life expectancy", formatYears(enrich.lifeExpectancy));
+      changed ||= fillBlank(nextMetrics, "Human Development Index", formatDecimal(enrich.hdi, 3));
     }
     if (category === "military") {
+      changed ||= fillBlank(nextMetrics, "Active personnel", formatInt(enrich.militaryPersonnel));
       changed ||= fillBlank(nextMetrics, "Defense spending", formatMoney(enrich.defenseSpending));
     }
 
@@ -278,9 +291,15 @@ async function fetchWikidataEnrichment() {
     if (!/^[A-Z]{2}$/.test(iso2)) continue;
     out.set(iso2, {
       governmentLabel: normalizeOptional(row?.governmentLabel?.value),
+      headOfStateLabel: normalizeOptional(row?.headOfStateLabel?.value),
+      headOfGovernmentLabel: normalizeOptional(row?.headOfGovernmentLabel?.value),
+      currencyLabel: normalizeOptional(row?.currencyLabel?.value),
       population: toNum(row?.population?.value),
       gdp: toNum(row?.gdp?.value),
+      gdpPerCapita: toNum(row?.gdpPerCapita?.value),
       lifeExpectancy: toNum(row?.lifeExpectancy?.value),
+      hdi: toNum(row?.hdi?.value),
+      militaryPersonnel: toNum(row?.militaryPersonnel?.value),
       defenseSpending: toNum(row?.defenseSpending?.value)
     });
   }
@@ -316,6 +335,11 @@ function formatMoney(v: number | null): string {
 function formatYears(v: number | null): string {
   if (!Number.isFinite(Number(v))) return "";
   return `${Number(v).toFixed(1)} years`;
+}
+
+function formatDecimal(v: number | null, digits = 2): string {
+  if (!Number.isFinite(Number(v))) return "";
+  return Number(v).toFixed(digits);
 }
 
 function toMetricObject(raw: any): Record<string, string> {
