@@ -160,6 +160,11 @@ body.gs-body {
   cursor: pointer;
 }
 
+.brief-doc-card--placeholder {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
 .brief-doc-card:hover,
 .event-brief-card:hover {
   border-color: #4f7cff;
@@ -227,6 +232,18 @@ body.gs-body {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 4px 9px;
+}
+
+.badge-muted {
+  opacity: 0.65;
+  border-color: #2a303c;
+  background: #111520;
+}
+
+.event-brief-card .badge {
+  font-size: 10px;
+  padding: 3px 8px;
+  opacity: 0.85;
 }
 
 .badge-risk-high { border-color: rgba(255, 69, 58, 0.35); background: rgba(255, 69, 58, 0.16); }
@@ -358,12 +375,29 @@ body.gs-body {
   gap: 12px;
 }
 
+.detail-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.detail-column section + section {
+  margin-top: 14px;
+}
+
 .detail-map-panel,
 .detail-hotspots-panel {
   background: #0b0f16;
   border: 1px solid #1f2531;
   border-radius: 10px;
   padding: 10px;
+}
+
+.detail-hotspots-strip {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
 }
 
 .detail-hotspots-panel h4 {
@@ -398,6 +432,11 @@ body.gs-body {
   border: 1px solid #1f2531;
 }
 
+.detail-map--brief {
+  min-height: 250px;
+  height: clamp(250px, 32vh, 300px);
+}
+
 .hotspot-item {
   width: 100%;
   margin-bottom: 8px;
@@ -411,6 +450,11 @@ body.gs-body {
   gap: 8px;
   text-align: left;
   cursor: pointer;
+}
+
+.hotspot-item--active {
+  border-color: #4f7cff;
+  background: #141c2b;
 }
 
 .hotspot-item__idx {
@@ -470,6 +514,29 @@ body.gs-body {
   cursor: pointer;
 }
 
+.detail-toggle {
+  border: 1px solid #32425f;
+  background: #10192a;
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.hotspot-detail__head h4 {
+  margin: 0 0 6px;
+}
+
+.detail-hotspots-panel h5 {
+  margin: 10px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b7bfce;
+}
+
 @media (max-width: 900px) {
   .brf-main {
     padding: 88px 14px 34px;
@@ -504,5 +571,19 @@ body.gs-body {
 
   .detail-map-grid {
     grid-template-columns: 1fr;
+  }
+
+  .detail-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-hotspots-strip {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .hotspot-item {
+    min-width: 250px;
   }
 }

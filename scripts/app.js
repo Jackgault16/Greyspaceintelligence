@@ -325,7 +325,7 @@ function fitHomeMapToViewport() {
 
     // Force a rectangular projection so the map fills the section cleanly.
     try {
-        intelMap.setProjection({ name: "mercator" });
+        intelMap.setProjection("mercator");
     } catch (_) {
         // Older style/projection combos can throw; keep fallback below.
     }
@@ -373,10 +373,25 @@ if (intelMapContainer && typeof mapboxgl !== "undefined") {
     intelMap.touchZoomRotate.disableRotation();
 
     intelMap.on("load", () => {
+        try {
+            intelMap.setProjection("mercator");
+        } catch (_) {
+            // no-op fallback for unsupported versions/styles
+        }
         fitHomeMapToViewport();
 
         // Once map is ready, load events from Supabase
         loadMapEventsFromSupabase();
+    });
+
+    // Some style reloads revert to globe at low zoom; force mercator again.
+    intelMap.on("style.load", () => {
+        try {
+            intelMap.setProjection("mercator");
+        } catch (_) {
+            // no-op
+        }
+        fitHomeMapToViewport();
     });
 
     window.addEventListener("resize", () => {

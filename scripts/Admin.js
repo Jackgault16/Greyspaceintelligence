@@ -71,6 +71,12 @@ const briefDocumentTypeFields = document.getElementById("briefDocumentTypeFields
 const briefingTags = document.getElementById("briefingTags");
 const briefPinsSection = document.getElementById("briefPinsSection");
 const briefPinsList = document.getElementById("briefPinsList");
+const adminModeTabs = document.getElementById("adminModeTabs");
+const eventsLibraryWrap = document.getElementById("eventsLibraryWrap");
+const documentsLibraryWrap = document.getElementById("documentsLibraryWrap");
+const adminListSearch = document.getElementById("adminListSearch");
+const adminListRegionFilter = document.getElementById("adminListRegionFilter");
+const adminListCategoryFilter = document.getElementById("adminListCategoryFilter");
 
 const publishButton = document.getElementById("publishButton");
 const resetFormButton = document.getElementById("resetFormButton");
@@ -87,6 +93,13 @@ let briefPinsMap = null;
 let briefPins = [];
 let briefPinMarkers = [];
 let briefPinsBaselineHash = "[]";
+let adminMode = "events";
+let listFilterState = { search: "", region: "", category: "" };
+let liveRowsCache = [];
+let eventRowsCache = [];
+let docsRowsCache = [];
+let currentBriefFrameKey = "global";
+let didInitBriefPinsView = false;
 
 function generateUuid() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -110,7 +123,11 @@ function normalizedPinsForHash(pins) {
         region: String(pin.region || "").trim(),
         category: String(pin.category || "").trim(),
         risk_level: normalizeRiskLevel(pin.risk_level || "medium"),
-        event_id: isUuid(pin.event_id) ? String(pin.event_id).trim() : ""
+        event_id: isUuid(pin.event_id) ? String(pin.event_id).trim() : "",
+        hotspot_summary: String(pin.hotspot_summary || "").trim(),
+        hotspot_why_it_matters: String(pin.hotspot_why_it_matters || "").trim(),
+        hotspot_indicators: splitMultiline(pin.hotspot_indicators || "", 12),
+        hotspot_sources: splitCommaList(pin.hotspot_sources || "", 24)
     }));
 }
 
@@ -296,9 +313,66 @@ function syncEditorModeUI() {
         initBriefPinsMap();
         if (briefPinsMap) {
             setTimeout(() => briefPinsMap.resize(), 80);
+            applyBriefPinsInitialView();
         }
     }
     fillSubtypeOptions();
+}
+
+function getSelectedFrameKey() {
+    if (normalizeBriefType(briefDocType.value) === "regional") {
+        const key = getDocumentSubtypeFromUI();
+        return (window.normalizeRegionKey ? window.normalizeRegionKey(key) : String(key || "").trim().toLowerCase()) || "global";
+    }
+    const regionKey = regionKeyByLabel(intelRegion.value);
+    return regionKey || "global";
+}
+
+function applyBriefPinsInitialView(force = false) {
+    if (!briefPinsMap) return;
+    if (didInitBriefPinsView && !force) return;
+    didInitBriefPinsView = true;
+
+    const frameKey = getSelectedFrameKey();
+    const frame = (window.REGION_FRAMES && window.REGION_FRAMES[frameKey]) || (window.REGION_FRAMES && window.REGION_FRAMES.global) || { center: [0, 20], zoom: 1.2 };
+
+    const bounds = new mapboxgl.LngLatBounds();
+    let hasPinBounds = false;
+    let firstPin = null;
+    briefPins.forEach(pin => {
+        if (!Number.isFinite(pin.latitude) || !Number.isFinite(pin.longitude)) return;
+        if (!firstPin) firstPin = pin;
+        bounds.extend([pin.longitude, pin.latitude]);
+        hasPinBounds = true;
+    });
+
+    try {
+        if (normalizeBriefType(briefDocType.value) === "regional") {
+            if (frame.bounds) {
+                briefPinsMap.fitBounds(frame.bounds, { padding: 40, duration: 0 });
+            } else {
+                briefPinsMap.jumpTo({ center: frame.center, zoom: frame.zoom });
+            }
+            return;
+        }
+
+        if (hasPinBounds) {
+            if (briefPins.length === 1 && firstPin) {
+                briefPinsMap.jumpTo({ center: [firstPin.longitude, firstPin.latitude], zoom: 4.8 });
+            } else {
+                briefPinsMap.fitBounds(bounds, { padding: 50, duration: 0 });
+            }
+            return;
+        }
+
+        if (frame.bounds) {
+            briefPinsMap.fitBounds(frame.bounds, { padding: 40, duration: 0 });
+        } else {
+            briefPinsMap.jumpTo({ center: frame.center, zoom: frame.zoom });
+        }
+    } catch (_) {
+        briefPinsMap.jumpTo({ center: [0, 20], zoom: 1.2 });
+    }
 }
 
 function extractMissingColumnName(error) {
@@ -438,6 +512,11 @@ function initBriefPinsMap() {
         zoom: frame.zoom
     });
 
+    briefPinsMap.on("load", () => {
+        didInitBriefPinsView = false;
+        applyBriefPinsInitialView();
+    });
+
     briefPinsMap.on("click", e => {
         briefPins.push({
             id: generateUuid(),
@@ -448,6 +527,10 @@ function initBriefPinsMap() {
             category: intelCategory.value || "",
             risk_level: "medium",
             event_id: "",
+            hotspot_summary: "",
+            hotspot_why_it_matters: "",
+            hotspot_indicators: "",
+            hotspot_sources: "",
             created_at: new Date().toISOString()
         });
         renderBriefPins();
@@ -473,65 +556,95 @@ function updatePinMarkers() {
     });
 
     if (hasBounds && briefPins.length > 1) {
-        briefPinsMap.fitBounds(bounds, { padding: 40, duration: 0 });
+        didInitBriefPinsView = false;
+        applyBriefPinsInitialView(true);
     }
 }
 
 function renderBriefPins() {
     if (!briefPinsList) return;
     if (!briefPins.length) {
-        briefPinsList.innerHTML = '<div class="field-help">No pins added yet. Click the map to add one.</div>';
+        briefPinsList.innerHTML = '<div class="field-help">No hotspots added yet. Click the map to add one.</div>';
         updatePinMarkers();
         return;
     }
 
-    briefPinsList.innerHTML = briefPins.map((pin, idx) => `
-        <div class="pin-row">
-            <div class="pin-row__header">
-                <span>Pin ${idx + 1}</span>
-                <button type="button" class="btn-danger pin-delete-btn" data-pin-id="${pin.id}">Delete</button>
-            </div>
-            <label>Label</label>
-            <input type="text" class="pin-input" data-field="label" data-pin-id="${pin.id}" value="${String(pin.label || "").replace(/"/g, "&quot;")}">
+    if (!briefPins.some(p => p.__selected)) {
+        briefPins[0].__selected = true;
+    }
 
+    const selected = briefPins.find(p => p.__selected) || briefPins[0];
+
+    briefPinsList.innerHTML = `
+        <div class="field-help">Select a hotspot to edit details.</div>
+        ${briefPins.map((pin, idx) => `
+            <div class="pin-row ${pin.__selected ? "pin-row--active" : ""}">
+                <div class="pin-row__header">
+                    <span>${idx + 1}. ${pin.label || "Hotspot"}</span>
+                    <div style="display:flex;gap:6px;">
+                        <button type="button" class="btn-secondary pin-select-btn" data-pin-id="${pin.id}">Edit</button>
+                        <button type="button" class="btn-danger pin-delete-btn" data-pin-id="${pin.id}">Delete</button>
+                    </div>
+                </div>
+                <div class="field-help">${pin.region || "--"} • ${pin.category || "--"} • ${normalizeRiskLevel(pin.risk_level || "medium")}</div>
+            </div>
+        `).join("")}
+        <div class="pin-row">
+            <div class="pin-row__header"><span>Selected Hotspot Editor</span></div>
+            <label>Label</label>
+            <input type="text" class="pin-input" data-field="label" data-pin-id="${selected.id}" value="${String(selected.label || "").replace(/"/g, "&quot;")}">
             <div class="admin-row">
                 <div>
                     <label>Latitude</label>
-                    <input type="text" value="${pin.latitude}" readonly>
+                    <input type="text" value="${selected.latitude}" readonly>
                 </div>
                 <div>
                     <label>Longitude</label>
-                    <input type="text" value="${pin.longitude}" readonly>
+                    <input type="text" value="${selected.longitude}" readonly>
                 </div>
             </div>
-
             <div class="admin-row">
                 <div>
                     <label>Region (optional)</label>
-                    <input type="text" class="pin-input" data-field="region" data-pin-id="${pin.id}" value="${String(pin.region || "").replace(/"/g, "&quot;")}">
+                    <input type="text" class="pin-input" data-field="region" data-pin-id="${selected.id}" value="${String(selected.region || "").replace(/"/g, "&quot;")}">
                 </div>
                 <div>
                     <label>Category (optional)</label>
-                    <input type="text" class="pin-input" data-field="category" data-pin-id="${pin.id}" value="${String(pin.category || "").replace(/"/g, "&quot;")}">
+                    <input type="text" class="pin-input" data-field="category" data-pin-id="${selected.id}" value="${String(selected.category || "").replace(/"/g, "&quot;")}">
                 </div>
             </div>
-
             <div class="admin-row">
                 <div>
                     <label>Risk Level</label>
-                    <select class="pin-input" data-field="risk_level" data-pin-id="${pin.id}">
-                        <option value="low" ${pin.risk_level === "low" ? "selected" : ""}>low</option>
-                        <option value="medium" ${pin.risk_level === "medium" ? "selected" : ""}>medium</option>
-                        <option value="high" ${pin.risk_level === "high" ? "selected" : ""}>high</option>
+                    <select class="pin-input" data-field="risk_level" data-pin-id="${selected.id}">
+                        <option value="low" ${selected.risk_level === "low" ? "selected" : ""}>low</option>
+                        <option value="medium" ${selected.risk_level === "medium" ? "selected" : ""}>medium</option>
+                        <option value="high" ${selected.risk_level === "high" ? "selected" : ""}>high</option>
                     </select>
                 </div>
                 <div>
                     <label>Event ID (optional UUID)</label>
-                    <input type="text" class="pin-input" data-field="event_id" data-pin-id="${pin.id}" value="${String(pin.event_id || "").replace(/"/g, "&quot;")}">
+                    <input type="text" class="pin-input" data-field="event_id" data-pin-id="${selected.id}" value="${String(selected.event_id || "").replace(/"/g, "&quot;")}">
                 </div>
             </div>
+            <label>Hotspot Summary (What's happening)</label>
+            <textarea class="pin-input" data-field="hotspot_summary" data-pin-id="${selected.id}" placeholder="Concise hotspot summary...">${String(selected.hotspot_summary || "")}</textarea>
+            <label>Hotspot Why It Matters</label>
+            <textarea class="pin-input" data-field="hotspot_why_it_matters" data-pin-id="${selected.id}" placeholder="Why this hotspot matters...">${String(selected.hotspot_why_it_matters || "")}</textarea>
+            <label>Hotspot Indicators (one per line)</label>
+            <textarea class="pin-input" data-field="hotspot_indicators" data-pin-id="${selected.id}" placeholder="Indicator 1&#10;Indicator 2">${String(selected.hotspot_indicators || "")}</textarea>
+            <label>Hotspot Sources (comma-separated)</label>
+            <input type="text" class="pin-input" data-field="hotspot_sources" data-pin-id="${selected.id}" value="${String(selected.hotspot_sources || "").replace(/"/g, "&quot;")}" placeholder="bbc.com, reuters.com">
         </div>
-    `).join("");
+    `;
+
+    briefPinsList.querySelectorAll(".pin-select-btn").forEach(btn => {
+        btn.addEventListener("click", e => {
+            const id = e.currentTarget.getAttribute("data-pin-id");
+            briefPins = briefPins.map(p => ({ ...p, __selected: p.id === id }));
+            renderBriefPins();
+        });
+    });
 
     briefPinsList.querySelectorAll(".pin-input").forEach(el => {
         const onPinChange = e => {
@@ -549,6 +662,7 @@ function renderBriefPins() {
         btn.addEventListener("click", e => {
             const id = e.currentTarget.getAttribute("data-pin-id");
             briefPins = briefPins.filter(p => p.id !== id);
+            if (briefPins.length) briefPins[0].__selected = true;
             renderBriefPins();
         });
     });
@@ -587,8 +701,13 @@ async function loadBriefPins(briefId) {
         category: pin.category || "",
         risk_level: normalizeRiskLevel(pin.risk_level || "medium"),
         event_id: pin.event_id || "",
+        hotspot_summary: pin.hotspot_summary || "",
+        hotspot_why_it_matters: pin.hotspot_why_it_matters || "",
+        hotspot_indicators: Array.isArray(pin.hotspot_indicators) ? pin.hotspot_indicators.join("\n") : "",
+        hotspot_sources: Array.isArray(pin.hotspot_sources) ? pin.hotspot_sources.join(", ") : "",
         created_at: pin.created_at || new Date().toISOString()
     }));
+    if (briefPins.length) briefPins[0].__selected = true;
 
     briefPinsBaselineHash = pinsHash(briefPins);
     renderBriefPins();
@@ -625,7 +744,11 @@ async function syncBriefPins(briefId) {
             region: String(pin.region || "").trim() || null,
             category: String(pin.category || "").trim() || null,
             risk_level: normalizeRiskLevel(pin.risk_level || "medium"),
-            event_id: isUuid(pin.event_id) ? String(pin.event_id).trim() : null
+            event_id: isUuid(pin.event_id) ? String(pin.event_id).trim() : null,
+            hotspot_summary: String(pin.hotspot_summary || "").trim() || null,
+            hotspot_why_it_matters: String(pin.hotspot_why_it_matters || "").trim() || null,
+            hotspot_indicators: splitMultiline(pin.hotspot_indicators || "", 12),
+            hotspot_sources: splitCommaList(pin.hotspot_sources || "", 24)
         }))
         .filter(row => Number.isFinite(row.latitude) && Number.isFinite(row.longitude));
 
@@ -706,6 +829,8 @@ function clearForm() {
     briefingTags.value = "";
     briefDocSubtypeSpecial.value = "";
     briefPins = [];
+    currentBriefFrameKey = "global";
+    didInitBriefPinsView = false;
     briefPinsBaselineHash = "[]";
     renderBriefPins();
 
@@ -735,12 +860,27 @@ function createIntelListItem(item, table) {
     return div;
 }
 
-async function loadIntelList() {
-    const [liveRows, briefingRows, briefDocsRows] = await Promise.all([
-        fetchTableRows(LIVE_INTEL_TABLE),
-        fetchTableRows(BRIEFING_INTEL_TABLE),
-        fetchTableRows(BRIEF_DOCUMENTS_TABLE)
-    ]);
+function rowMatchesLibraryFilters(item) {
+    const search = String(listFilterState.search || "").toLowerCase();
+    const region = String(listFilterState.region || "").toLowerCase();
+    const category = String(listFilterState.category || "").toLowerCase();
+
+    const title = String(item.title || "").toLowerCase();
+    const rowRegion = String(regionKeyByLabel(item.region || item.theater || "") || item.region || item.theater || "").toLowerCase();
+    const rowCategory = String(item.category || item.type || "").toLowerCase();
+
+    if (search && !title.includes(search)) return false;
+    if (region && rowRegion !== region) return false;
+    if (category && rowCategory !== category) return false;
+    return true;
+}
+
+function renderIntelListsFromCache() {
+    if (!liveIntelList || !briefingIntelList || !briefDocumentsList) return;
+
+    const liveRows = liveRowsCache.filter(rowMatchesLibraryFilters);
+    const briefingRows = eventRowsCache.filter(rowMatchesLibraryFilters);
+    const briefDocsRows = docsRowsCache.filter(rowMatchesLibraryFilters);
 
     liveIntelList.innerHTML = "";
     briefingIntelList.innerHTML = "";
@@ -749,6 +889,23 @@ async function loadIntelList() {
     liveRows.forEach(item => liveIntelList.appendChild(createIntelListItem(item, LIVE_INTEL_TABLE)));
     briefingRows.forEach(item => briefingIntelList.appendChild(createIntelListItem(item, BRIEFING_INTEL_TABLE)));
     briefDocsRows.forEach(item => briefDocumentsList.appendChild(createIntelListItem(item, BRIEF_DOCUMENTS_TABLE)));
+
+    if (!liveRows.length) liveIntelList.innerHTML = '<div class="field-help">No matching live items.</div>';
+    if (!briefingRows.length) briefingIntelList.innerHTML = '<div class="field-help">No matching event briefs.</div>';
+    if (!briefDocsRows.length) briefDocumentsList.innerHTML = '<div class="field-help">No matching brief documents.</div>';
+}
+
+async function loadIntelList() {
+    const [liveRows, briefingRows, briefDocsRows] = await Promise.all([
+        fetchTableRows(LIVE_INTEL_TABLE),
+        fetchTableRows(BRIEFING_INTEL_TABLE),
+        fetchTableRows(BRIEF_DOCUMENTS_TABLE)
+    ]);
+
+    liveRowsCache = liveRows;
+    eventRowsCache = briefingRows;
+    docsRowsCache = briefDocsRows;
+    renderIntelListsFromCache();
 }
 
 function getDocumentSubtypeFromUI() {
@@ -812,6 +969,9 @@ async function loadIntelIntoEditor(item, table) {
             briefDocSubtypeSelect.value = item.brief_subtype || briefDocSubtypeSelect.value;
         }
         await loadBriefPins(item.id);
+        currentBriefFrameKey = getSelectedFrameKey();
+        didInitBriefPinsView = false;
+        applyBriefPinsInitialView();
     } else {
         briefDocType.value = "scheduled";
         briefDocSubtypeSpecial.value = "";
@@ -826,6 +986,37 @@ async function loadIntelIntoEditor(item, table) {
     }
 
     deleteButton.style.display = "inline-block";
+    syncEditorModeUI();
+}
+
+function populateAdminRegionFilter() {
+    if (!adminListRegionFilter) return;
+    const current = adminListRegionFilter.value;
+    adminListRegionFilter.innerHTML = '<option value="">All Regions</option>';
+    REGION_OPTIONS.forEach(opt => {
+        const option = document.createElement("option");
+        option.value = opt.key;
+        option.textContent = opt.label;
+        adminListRegionFilter.appendChild(option);
+    });
+    adminListRegionFilter.value = current || "";
+}
+
+function setAdminMode(mode) {
+    adminMode = mode === "documents" ? "documents" : "events";
+    if (eventsLibraryWrap) eventsLibraryWrap.style.display = adminMode === "events" ? "block" : "none";
+    if (documentsLibraryWrap) documentsLibraryWrap.style.display = adminMode === "documents" ? "block" : "none";
+
+    adminModeTabs?.querySelectorAll(".admin-tab").forEach(tab => {
+        tab.classList.toggle("active", tab.getAttribute("data-mode") === adminMode);
+    });
+
+    if (adminMode === "documents") {
+        intelScope.value = "BRIEFING";
+        briefingEntryKind.value = "document";
+    } else if (getScopeMode() === "BRIEFING" && getBriefingEntryKind() === "document") {
+        briefingEntryKind.value = "event";
+    }
     syncEditorModeUI();
 }
 
@@ -1023,6 +1214,40 @@ intelScope.addEventListener("change", () => {
 });
 briefingEntryKind.addEventListener("change", syncEditorModeUI);
 briefDocType.addEventListener("change", fillSubtypeOptions);
+briefDocSubtypeSelect.addEventListener("change", () => {
+    didInitBriefPinsView = false;
+    applyBriefPinsInitialView(true);
+});
+briefDocSubtypeSpecial.addEventListener("input", () => {
+    didInitBriefPinsView = false;
+    applyBriefPinsInitialView(true);
+});
+intelRegion.addEventListener("change", () => {
+    didInitBriefPinsView = false;
+    applyBriefPinsInitialView(true);
+});
+
+adminModeTabs?.addEventListener("click", e => {
+    const button = e.target.closest(".admin-tab");
+    if (!button) return;
+    const mode = button.getAttribute("data-mode") || "events";
+    setAdminMode(mode);
+});
+
+adminListSearch?.addEventListener("input", e => {
+    listFilterState.search = String(e.target.value || "").trim();
+    renderIntelListsFromCache();
+});
+
+adminListRegionFilter?.addEventListener("change", e => {
+    listFilterState.region = String(e.target.value || "").trim().toLowerCase();
+    renderIntelListsFromCache();
+});
+
+adminListCategoryFilter?.addEventListener("change", e => {
+    listFilterState.category = String(e.target.value || "").trim().toLowerCase();
+    renderIntelListsFromCache();
+});
 
 // ===============================
 // AUTH
@@ -1069,8 +1294,10 @@ async function showAdminView(user) {
         intelRegion.value = current;
     }
     setAutoTimestamp();
+    populateAdminRegionFilter();
     fillSubtypeOptions();
     syncEditorModeUI();
+    setAdminMode("events");
     renderBriefPins();
     await loadIntelList();
 }

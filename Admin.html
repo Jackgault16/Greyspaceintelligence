@@ -40,8 +40,38 @@
 
         .admin-grid {
             display: grid;
-            grid-template-columns: 1.2fr 1fr;
+            grid-template-columns: 360px 1fr;
             gap: 24px;
+        }
+
+        .admin-tabs {
+            display: inline-flex;
+            border: 1px solid #2b3040;
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 14px;
+        }
+
+        .admin-tab {
+            border: none;
+            background: #0c0f15;
+            color: #d2d7e2;
+            padding: 8px 14px;
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+
+        .admin-tab.active {
+            background: #16203a;
+            color: #fff;
+        }
+
+        .admin-list-controls {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 10px;
         }
 
         .admin-card {
@@ -116,6 +146,33 @@
             margin-top: 3px;
             font-size: 0.72rem;
             opacity: 0.65;
+        }
+
+        .accordion {
+            margin-top: 12px;
+            border: 1px solid #1b1f29;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .accordion > summary {
+            cursor: pointer;
+            list-style: none;
+            padding: 10px 12px;
+            background: #0c1018;
+            border-bottom: 1px solid #1b1f29;
+            letter-spacing: 0.08em;
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            color: #d5dae5;
+        }
+
+        .accordion > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .accordion-content {
+            padding: 10px 12px 12px;
         }
 
         #briefPinsMap {
@@ -356,6 +413,11 @@
             </div>
         </div>
 
+        <div class="admin-tabs" id="adminModeTabs">
+            <button class="admin-tab active" data-mode="events">Events</button>
+            <button class="admin-tab" data-mode="documents">Brief Documents</button>
+        </div>
+
         <div class="admin-grid">
 
             <!-- LEFT: Editor -->
@@ -454,7 +516,7 @@
                             <input id="briefingTags" type="text" placeholder="e.g. sanctions, cyber, election">
 
                             <div id="briefPinsSection" class="admin-subsection" style="display:none;">
-                                <h3>PINS</h3>
+                                <h3>HOTSPOTS</h3>
                                 <div class="field-help">Click the map to add a pin. Pins are optional but preferred for brief geography.</div>
                                 <div id="briefPinsMap"></div>
                                 <div id="briefPinsList" class="pins-list"></div>
@@ -566,14 +628,39 @@
             <!-- RIGHT: Existing Intel -->
             <div class="admin-card">
                 <h2>EXISTING INTEL</h2>
-                <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:6px 0 4px;">LIVE</div>
-                <div class="intel-list" id="liveIntelList" style="max-height:200px;"></div>
+                <div class="admin-list-controls">
+                    <input type="text" id="adminListSearch" placeholder="Search title...">
+                    <div class="admin-row">
+                        <div>
+                            <select id="adminListRegionFilter">
+                                <option value="">All Regions</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="adminListCategoryFilter">
+                                <option value="">All Categories</option>
+                                <option value="MILITARY">MILITARY</option>
+                                <option value="POLITICAL">POLITICAL</option>
+                                <option value="ECONOMIC">ECONOMIC</option>
+                                <option value="SOCIAL">SOCIAL</option>
+                                <option value="GREY SPACE">GREY SPACE</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
 
-                <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">EVENT BRIEFS</div>
-                <div class="intel-list" id="briefingIntelList" style="max-height:200px;"></div>
+                <div id="eventsLibraryWrap">
+                    <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:6px 0 4px;">LIVE</div>
+                    <div class="intel-list" id="liveIntelList" style="max-height:200px;"></div>
 
-                <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">BRIEF DOCUMENTS</div>
-                <div class="intel-list" id="briefDocumentsList" style="max-height:200px;"></div>
+                    <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">EVENT BRIEFS</div>
+                    <div class="intel-list" id="briefingIntelList" style="max-height:200px;"></div>
+                </div>
+
+                <div id="documentsLibraryWrap" style="display:none;">
+                    <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">BRIEF DOCUMENTS</div>
+                    <div class="intel-list" id="briefDocumentsList" style="max-height:420px;"></div>
+                </div>
             </div>
 
         </div>

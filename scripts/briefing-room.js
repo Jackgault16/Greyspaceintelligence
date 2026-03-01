@@ -1,4 +1,4 @@
-const REGION_OPTIONS = window.BRIEF_REGION_OPTIONS || [];
+ï»¿const REGION_OPTIONS = window.BRIEF_REGION_OPTIONS || [];
 const IMPACT_ORDER = { noise: 1, tactical: 2, operational: 3, strategic: 4 };
 const RISK_ORDER = { low: 1, medium: 2, high: 3 };
 const PRIORITY_ORDER = { low: 1, medium: 2, high: 3 };
@@ -15,9 +15,11 @@ const filterState = {
 
 let briefDocumentsData = [];
 let eventBriefsData = [];
+let briefPinsByBriefId = new Map();
 let briefingModalMap = null;
 let previousBodyOverflow = "";
 let activeDocPinFeatures = [];
+let selectedHotspotId = null;
 
 const briefDocGrid = document.getElementById("briefDocGrid");
 const eventBriefGrid = document.getElementById("eventBriefGrid");
@@ -244,11 +246,31 @@ async function fetchBriefDocumentPins(briefId) {
   return data || [];
 }
 
+function pinsForBrief(briefId) {
+  return briefPinsByBriefId.get(String(briefId)) || [];
+}
+
+function hotspotCountForBrief(briefId) {
+  return pinsForBrief(briefId).length;
+}
+
 async function loadData() {
   try {
-    const [docRows, eventRows] = await Promise.all([
+    const [docRows, eventRows, pinRows] = await Promise.all([
       fetchBriefDocuments({ limit: 500, days: 3650 }),
-      fetchBriefingIntel({ limit: 800, days: 3650 })
+      fetchBriefingIntel({ limit: 800, days: 3650 }),
+      (async () => {
+        if (!supabase) return [];
+        const { data, error } = await supabase
+          .from("brief_document_pins")
+          .select("*")
+          .order("created_at", { ascending: true });
+        if (error) {
+          console.error("Failed to fetch brief_document_pins:", error);
+          return [];
+        }
+        return data || [];
+      })()
     ]);
 
     briefDocumentsData = docRows
@@ -259,10 +281,17 @@ async function loadData() {
       });
 
     eventBriefsData = dedupeEventBriefs(eventRows);
+    briefPinsByBriefId = pinRows.reduce((acc, pin) => {
+      const key = String(pin.brief_id || "");
+      if (!acc.has(key)) acc.set(key, []);
+      acc.get(key).push(pin);
+      return acc;
+    }, new Map());
   } catch (err) {
     console.error("Failed to load briefing room data:", err);
     briefDocumentsData = [];
     eventBriefsData = [];
+    briefPinsByBriefId = new Map();
   }
 }
 
@@ -334,31 +363,86 @@ function filterEvents() {
   return filtered;
 }
 
+function latestBySubtype(docs, subtypeKey) {
+  const matches = docs.filter(d => d.briefSubtype === subtypeKey);
+  if (!matches.length) return null;
+  matches.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+  return matches[0];
+}
+
+function latestByRegion(docs, regionKey) {
+  const key = normalizeRegionToKey(regionKey);
+  const matches = docs.filter(d => normalizeRegionToKey(d.briefSubtype || d.regionKey) === key);
+  if (!matches.length) return null;
+  matches.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+  return matches[0];
+}
+
+function renderDocCard(doc, fallbackTitle) {
+  const card = document.createElement("article");
+  card.className = "brief-doc-card";
+
+  if (!doc) {
+    card.classList.add("brief-doc-card--placeholder");
+    card.innerHTML = `
+      <h3 class="card-title line-clamp-2">${fallbackTitle}</h3>
+      <div class="card-meta"><span>Not published yet</span></div>
+      <ul class="card-list"><li class="line-clamp-1">No brief published for this slot.</li></ul>
+    `;
+    return card;
+  }
+
+  const bullets = doc.keyPoints.slice(0, 3).map(p => `<li class="line-clamp-1">${truncateChars(p, 90)}</li>`).join("");
+  const tags = doc.tags.slice(0, 3).map(t => `<span class="tag-chip">${t}</span>`).join("");
+  card.innerHTML = `
+    <h3 class="card-title line-clamp-2">${fallbackTitle}</h3>
+    <div class="card-meta">
+      <span>${elapsedLabel(doc.updatedAt)} â€¢ ${coverageLabelForDoc(doc)} â€¢ ${hotspotCountForBrief(doc.id)} hotspots</span>
+      ${badge(`risk ${doc.risk}`, `badge-risk-${doc.risk}`)}
+      ${badge(`confidence ${doc.confidence}`)}
+    </div>
+    <ul class="card-list">${bullets || "<li class='line-clamp-1'>No key points.</li>"}</ul>
+    <div class="tag-row">${tags}</div>
+  `;
+  card.addEventListener("click", () => openDocumentModal(doc));
+  return card;
+}
+
 function renderDocumentGrid() {
   const docs = filterDocs();
   briefDocGrid.innerHTML = "";
+
+  if (filterState.docType === "scheduled") {
+    const scheduled = [
+      { key: "morning", label: "Morning Brief" },
+      { key: "evening", label: "Evening Brief" },
+      { key: "daily", label: "Daily Brief" },
+      { key: "weekly", label: "Weekly Brief" },
+      { key: "monthly", label: "Monthly Brief" }
+    ];
+
+    scheduled.forEach(slot => {
+      const doc = latestBySubtype(docs, slot.key);
+      briefDocGrid.appendChild(renderDocCard(doc, slot.label));
+    });
+    return;
+  }
+
+  if (filterState.docType === "regional") {
+    REGION_OPTIONS.forEach(region => {
+      const doc = latestByRegion(docs, region.key);
+      briefDocGrid.appendChild(renderDocCard(doc, `${region.label} Briefing`));
+    });
+    return;
+  }
+
   if (!docs.length) {
-    briefDocGrid.innerHTML = `<div class="empty-state">No brief documents match current filters.</div>`;
+    briefDocGrid.innerHTML = `<div class="empty-state">No special briefs match current filters.</div>`;
     return;
   }
 
   docs.forEach(doc => {
-    const card = document.createElement("article");
-    card.className = "brief-doc-card";
-    const bullets = doc.keyPoints.slice(0, 3).map(p => `<li class="line-clamp-1">${truncateChars(p, 90)}</li>`).join("");
-    const tags = doc.tags.slice(0, 3).map(t => `<span class="tag-chip">${t}</span>`).join("");
-    card.innerHTML = `
-      <h3 class="card-title line-clamp-2">${doc.title}</h3>
-      <div class="card-meta">
-        <span>${elapsedLabel(doc.updatedAt)}</span>
-        ${badge(`risk ${doc.risk}`, `badge-risk-${doc.risk}`)}
-        ${badge(`confidence ${doc.confidence}`)}
-      </div>
-      <ul class="card-list">${bullets || "<li class='line-clamp-1'>No key points.</li>"}</ul>
-      <div class="tag-row">${tags}</div>
-    `;
-    card.addEventListener("click", () => openDocumentModal(doc));
-    briefDocGrid.appendChild(card);
+    briefDocGrid.appendChild(renderDocCard(doc, doc.title || "Special Brief"));
   });
 }
 
@@ -376,7 +460,7 @@ function renderEventFeed() {
     const tags = [...item.tags, item.regionLabel, item.category].filter(Boolean).slice(0, 3).map(t => `<span class="tag-chip">${t}</span>`).join("");
     card.innerHTML = `
       <h3 class="card-title line-clamp-2">${item.title}</h3>
-      <div class="card-meta line-clamp-1">${formatTimestamp(item.timestamp)} • ${item.regionLabel || "--"} • ${item.category || "--"} • ${item.topSource}</div>
+      <div class="card-meta line-clamp-1">${formatTimestamp(item.timestamp)} â€¢ ${item.regionLabel || "--"} â€¢ ${item.category || "--"} â€¢ ${item.topSource}</div>
       <p class="why-line line-clamp-1">${item.whyItMatters || item.summary || "No why-it-matters provided."}</p>
       <div class="tag-row">${tags}</div>
       <div class="badge-row">
@@ -438,7 +522,11 @@ function pinFeatureFromRow(pin) {
       category: pin.category || "",
       risk_level: normalizeRisk(pin.risk_level || "medium"),
       event_id: pin.event_id || "",
-      created_at: pin.created_at || ""
+      created_at: pin.created_at || "",
+      hotspot_summary: pin.hotspot_summary || "",
+      hotspot_why_it_matters: pin.hotspot_why_it_matters || "",
+      hotspot_indicators: parseListField(pin.hotspot_indicators, 12),
+      hotspot_sources: parseListField(pin.hotspot_sources, 12)
     }
   };
 }
@@ -449,7 +537,7 @@ function popupHtmlForPin(properties) {
   return `
     <div class="pin-popup">
       <div class="pin-popup__title">${properties.label || "Hotspot"}</div>
-      <div class="pin-popup__meta">${properties.region || "--"} • ${properties.category || "--"}</div>
+      <div class="pin-popup__meta">${properties.region || "--"} â€¢ ${properties.category || "--"}</div>
       <div class="pin-popup__badges"><span class="badge badge-risk-${risk}">risk ${risk}</span></div>
       ${eventBtn}
     </div>
@@ -485,32 +573,64 @@ function applyInitialDocMapView(map, doc, features, didInitView) {
 }
 
 function renderHotspotsList(features) {
-  const container = document.getElementById("doc-hotspots");
+  const container = document.getElementById("doc-hotspots-strip");
   if (!container) return;
 
-  const sorted = [...features]
-    .sort((a, b) => {
-      const riskDiff = RISK_ORDER[normalizeRisk(b.properties.risk_level)] - RISK_ORDER[normalizeRisk(a.properties.risk_level)];
-      if (riskDiff !== 0) return riskDiff;
-      return new Date(b.properties.created_at || 0).getTime() - new Date(a.properties.created_at || 0).getTime();
-    })
-    .slice(0, 5);
+  const sorted = [...features].sort((a, b) => {
+    const riskDiff = RISK_ORDER[normalizeRisk(b.properties.risk_level)] - RISK_ORDER[normalizeRisk(a.properties.risk_level)];
+    if (riskDiff !== 0) return riskDiff;
+    return new Date(b.properties.created_at || 0).getTime() - new Date(a.properties.created_at || 0).getTime();
+  });
 
   if (!sorted.length) {
-    container.innerHTML = `<div class="empty-state">No hotspots pinned for this brief.</div>`;
+    container.innerHTML = `<div class="empty-state">No hotspots yet - add hotspots in admin to map key developments.</div>`;
+    const detail = document.getElementById("doc-hotspot-detail");
+    if (detail) detail.innerHTML = "";
     return;
   }
 
+  if (!selectedHotspotId || !sorted.some(f => String(f.properties.id) === String(selectedHotspotId))) {
+    selectedHotspotId = sorted[0].properties.id;
+  }
+
   container.innerHTML = sorted.map((f, idx) => `
-    <button class="hotspot-item" data-pin-id="${f.properties.id}">
+    <button class="hotspot-item ${String(selectedHotspotId) === String(f.properties.id) ? "hotspot-item--active" : ""}" data-pin-id="${f.properties.id}">
       <span class="hotspot-item__idx">${idx + 1}</span>
       <span class="hotspot-item__body">
         <span class="hotspot-item__label">${f.properties.label || "Hotspot"}</span>
-        <span class="hotspot-item__meta">${f.properties.region || "--"} • ${f.properties.category || "--"}</span>
+        <span class="hotspot-item__meta">${f.properties.region || "--"} â€¢ ${f.properties.category || "--"}</span>
       </span>
       <span class="badge badge-risk-${normalizeRisk(f.properties.risk_level)}">${normalizeRisk(f.properties.risk_level)}</span>
     </button>
   `).join("");
+
+  renderSelectedHotspotDetail(sorted.find(f => String(f.properties.id) === String(selectedHotspotId)));
+}
+
+function renderSelectedHotspotDetail(feature) {
+  const panel = document.getElementById("doc-hotspot-detail");
+  if (!panel) return;
+  if (!feature) {
+    panel.innerHTML = "";
+    return;
+  }
+
+  const p = feature.properties || {};
+  const indicators = Array.isArray(p.hotspot_indicators) ? p.hotspot_indicators : [];
+  const sources = Array.isArray(p.hotspot_sources) ? p.hotspot_sources : [];
+  const eventBtn = p.event_id ? `<button class="pin-open-event" data-event-id="${p.event_id}">Open related event</button>` : "";
+
+  panel.innerHTML = `
+    <div class="hotspot-detail__head">
+      <h4>${p.label || "Hotspot"}</h4>
+      <div class="card-meta">${p.region || "--"} â€¢ ${p.category || "--"} ${badge(`risk ${normalizeRisk(p.risk_level)}`, `badge-risk-${normalizeRisk(p.risk_level)}`)}</div>
+    </div>
+    ${p.hotspot_summary ? `<section><h5>What's happening</h5><p class="line-clamp-5">${p.hotspot_summary}</p></section>` : ""}
+    ${p.hotspot_why_it_matters ? `<section><h5>Why it matters</h5><p class="line-clamp-3">${p.hotspot_why_it_matters}</p></section>` : ""}
+    ${indicators.length ? `<section><h5>Indicators</h5><ul>${indicators.map(i => `<li>${i}</li>`).join("")}</ul></section>` : ""}
+    ${sources.length ? `<section><h5>Sources</h5><div class="tag-row">${sources.map(s => `<span class="tag-chip">${sourceDomain(s) || s}</span>`).join("")}</div></section>` : ""}
+    ${eventBtn}
+  `;
 }
 
 function bindModalDynamicActions(map) {
@@ -525,8 +645,10 @@ function bindModalDynamicActions(map) {
   modalContent.querySelectorAll(".hotspot-item").forEach(btn => {
     btn.addEventListener("click", () => {
       const id = btn.getAttribute("data-pin-id");
+      selectedHotspotId = id;
       const feature = activeDocPinFeatures.find(f => String(f.properties.id) === String(id));
       if (!feature || !map) return;
+      renderHotspotsList(activeDocPinFeatures);
       const [lng, lat] = feature.geometry.coordinates;
       map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 4.8), duration: 400 });
       new mapboxgl.Popup({ offset: 12 })
@@ -605,6 +727,8 @@ function mountDocMap(doc, pins) {
     briefingModalMap.on("click", "doc-pin-unclustered", e => {
       const feature = e.features && e.features[0];
       if (!feature) return;
+      selectedHotspotId = feature.properties.id;
+      renderHotspotsList(activeDocPinFeatures);
       new mapboxgl.Popup({ offset: 12 })
         .setLngLat(feature.geometry.coordinates)
         .setHTML(popupHtmlForPin(feature.properties))
@@ -631,52 +755,75 @@ function mountDocMap(doc, pins) {
 
 async function openDocumentModal(doc) {
   const titleBlock = titleBlockForDoc(doc);
+  const sourceChips = dedupeDisplaySources(doc.sources);
+  const hasSummary = Boolean(doc.summary && doc.summary.trim());
+  const hasSignals = doc.keyPoints.length > 0;
+  const hasIndicators = doc.indicators.length > 0;
+  const hasSources = sourceChips.length > 0;
+  const hasBody = Boolean(doc.details && doc.details.trim());
 
   modalContent.innerHTML = `
     <div class="detail-header">
       <div class="detail-type-chip">${titleBlock.typeChip}</div>
       <h2 class="detail-headline">${titleBlock.headline}</h2>
       ${titleBlock.secondary ? `<div class="detail-secondary line-clamp-2">${titleBlock.secondary}</div>` : ""}
-      <div class="detail-subheader" id="doc-subheader">${formatTimestamp(doc.updatedAt)} • Coverage: ${coverageLabelForDoc(doc)} • Pins: ...</div>
+      <div class="detail-subheader" id="doc-subheader">${formatTimestamp(doc.updatedAt)} â€¢ Coverage: ${coverageLabelForDoc(doc)} â€¢ 0 hotspots</div>
       <div class="detail-badges">
         ${badge(`risk ${doc.risk}`, `badge-risk-${doc.risk}`)}
-        ${badge(`impact ${doc.impact}`, `badge-impact-${doc.impact}`)}
         ${badge(`priority ${doc.priority}`, `badge-priority-${doc.priority}`)}
-        ${badge(`confidence ${doc.confidence}`)}
         ${badge(`status ${doc.status}`)}
+        <span class="badge badge-muted">impact ${doc.impact}</span>
+        <span class="badge badge-muted">confidence ${doc.confidence}</span>
       </div>
     </div>
 
-    <section class="detail-section detail-map-grid">
+    <section class="detail-section">
       <div class="detail-map-panel">
-        <div id="doc-brief-map" class="detail-map"></div>
+        <div id="doc-brief-map" class="detail-map detail-map--brief"></div>
       </div>
-      <div class="detail-hotspots-panel">
-        <h4>Hotspots</h4>
-        <div id="doc-hotspots"></div>
+      <div class="detail-hotspots-strip" id="doc-hotspots-strip"></div>
+      <div class="detail-hotspots-panel" id="doc-hotspot-detail"></div>
+    </section>
+
+    <section class="detail-section detail-columns">
+      <div class="detail-column">
+        ${hasSummary ? `
+          <section>
+            <h4>Executive Summary</h4>
+            <p class="line-clamp-5">${doc.summary}</p>
+          </section>
+        ` : ""}
+        ${hasSignals ? `
+          <section>
+            <h4>Top Signals</h4>
+            <ul>${doc.keyPoints.map(p => `<li>${p}</li>`).join("")}</ul>
+          </section>
+        ` : ""}
+      </div>
+      <div class="detail-column">
+        ${hasIndicators ? `
+          <section>
+            <h4>Indicators to Watch</h4>
+            <ul>${doc.indicators.map(p => `<li>${p}</li>`).join("")}</ul>
+          </section>
+        ` : ""}
+        ${hasSources ? `
+          <section>
+            <h4>Sources (${sourceChips.length})</h4>
+            <div class="tag-row">${sourceChips.map(s => `<span class="tag-chip">${s}</span>`).join("")}</div>
+          </section>
+        ` : "<section><h4>Sources</h4><p>No sources listed.</p></section>"}
       </div>
     </section>
 
+    ${hasBody ? `
     <section class="detail-section">
-      <h4>Executive Summary</h4>
-      <p class="line-clamp-5">${doc.summary || "No summary provided."}</p>
+      <button class="detail-toggle" type="button" id="toggleFullBody">Read full assessment</button>
+      <div id="fullBodyWrap" style="display:none; margin-top:10px;">
+        <p>${doc.details.replace(/\n/g, "<br>")}</p>
+      </div>
     </section>
-    <section class="detail-section">
-      <h4>Top Signals</h4>
-      <ul>${doc.keyPoints.map(p => `<li>${p}</li>`).join("") || "<li>No key points listed.</li>"}</ul>
-    </section>
-    <section class="detail-section">
-      <h4>Indicators to Watch</h4>
-      <ul>${doc.indicators.map(p => `<li>${p}</li>`).join("") || "<li>No indicators listed.</li>"}</ul>
-    </section>
-    <section class="detail-section">
-      <h4>Full Body</h4>
-      <p>${(doc.details || "No detailed body provided.").replace(/\n/g, "<br>")}</p>
-    </section>
-    <section class="detail-section">
-      <h4>Sources</h4>
-      <div class="tag-row">${dedupeDisplaySources(doc.sources).map(s => `<span class="tag-chip">${s}</span>`).join("") || "<span>No sources listed.</span>"}</div>
-    </section>
+    ` : ""}
     <section class="detail-section">
       <h4>Metadata</h4>
       <p>Region: ${doc.regionLabel || "--"} | Category: ${doc.category || "--"} | Type: ${titleBlock.typeChip}${doc.briefSubtype ? ` (${doc.briefSubtype})` : ""}</p>
@@ -685,14 +832,25 @@ async function openDocumentModal(doc) {
 
   openModal();
 
-  const pins = await fetchBriefDocumentPins(doc.id);
+  const pins = pinsForBrief(doc.id).length ? pinsForBrief(doc.id) : await fetchBriefDocumentPins(doc.id);
+  selectedHotspotId = pins[0]?.id || null;
   document.getElementById("doc-subheader").textContent =
-    `${formatTimestamp(doc.updatedAt)} • Coverage: ${coverageLabelForDoc(doc)} • Pins: ${pins.length}`;
+    `${formatTimestamp(doc.updatedAt)} â€¢ Coverage: ${coverageLabelForDoc(doc)} â€¢ ${pins.length} hotspots`;
 
   const features = pins.map(pinFeatureFromRow).filter(Boolean);
   renderHotspotsList(features);
   mountDocMap(doc, pins);
   bindModalDynamicActions(briefingModalMap);
+
+  const toggle = document.getElementById("toggleFullBody");
+  const wrap = document.getElementById("fullBodyWrap");
+  if (toggle && wrap) {
+    toggle.addEventListener("click", () => {
+      const open = wrap.style.display === "block";
+      wrap.style.display = open ? "none" : "block";
+      toggle.textContent = open ? "Read full assessment" : "Hide full assessment";
+    });
+  }
 }
 
 function openEventModal(event) {
@@ -836,3 +994,4 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadData();
   renderAll();
 });
+
