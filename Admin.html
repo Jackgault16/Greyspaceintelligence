@@ -625,9 +625,10 @@
                 <div id="editorStatus" style="margin-top:8px;font-size:0.75rem;opacity:0.7;"></div>
             </div>
 
-            <!-- RIGHT: Existing Intel -->
+            <!-- RIGHT: Queue -->
             <div class="admin-card">
-                <h2>EXISTING INTEL</h2>
+                <h2 id="queueTitle">LIVE QUEUE</h2>
+                <div id="queueSubtitle" class="field-help" style="margin-bottom:8px;">Publishes to Live page and Latest Intel.</div>
                 <div class="admin-list-controls">
                     <input type="text" id="adminListSearch" placeholder="Search title...">
                     <div class="admin-row">
@@ -651,15 +652,21 @@
 
                 <div id="eventsLibraryWrap">
                     <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:6px 0 4px;">LIVE</div>
-                    <div class="intel-list" id="liveIntelList" style="max-height:200px;"></div>
-
-                    <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">EVENT BRIEFS</div>
-                    <div class="intel-list" id="briefingIntelList" style="max-height:200px;"></div>
+                    <div class="intel-list" id="liveIntelList" style="max-height:420px;"></div>
                 </div>
 
                 <div id="documentsLibraryWrap" style="display:none;">
-                    <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">BRIEF DOCUMENTS</div>
-                    <div class="intel-list" id="briefDocumentsList" style="max-height:420px;"></div>
+                    <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:6px 0 4px;">SCHEDULED BRIEFS</div>
+                    <div class="intel-list" id="scheduledBriefDocsList" style="max-height:140px;"></div>
+
+                    <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">REGIONAL BRIEFINGS</div>
+                    <div class="intel-list" id="regionalBriefDocsList" style="max-height:140px;"></div>
+
+                    <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">SPECIAL BRIEFS</div>
+                    <div class="intel-list" id="specialBriefDocsList" style="max-height:140px;"></div>
+
+                    <div style="font-size:0.75rem;opacity:0.8;letter-spacing:0.08em;margin:12px 0 4px;">EVENT BRIEFS</div>
+                    <div class="intel-list" id="briefingEventBriefsList" style="max-height:180px;"></div>
                 </div>
             </div>
 

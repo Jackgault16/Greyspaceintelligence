@@ -36,8 +36,12 @@ const loginError = document.getElementById("loginError");
 const logoutLink = document.getElementById("logoutLink");
 
 const liveIntelList = document.getElementById("liveIntelList");
-const briefingIntelList = document.getElementById("briefingIntelList");
-const briefDocumentsList = document.getElementById("briefDocumentsList");
+const scheduledBriefDocsList = document.getElementById("scheduledBriefDocsList");
+const regionalBriefDocsList = document.getElementById("regionalBriefDocsList");
+const specialBriefDocsList = document.getElementById("specialBriefDocsList");
+const briefingEventBriefsList = document.getElementById("briefingEventBriefsList");
+const queueTitle = document.getElementById("queueTitle");
+const queueSubtitle = document.getElementById("queueSubtitle");
 const editorStatus = document.getElementById("editorStatus");
 const editorModeTitle = document.getElementById("editorModeTitle");
 
@@ -64,6 +68,8 @@ const briefingWhyMatters = document.getElementById("briefingWhyMatters");
 const briefingAssessment = document.getElementById("briefingAssessment");
 const briefingEntryKind = document.getElementById("briefingEntryKind");
 const briefingEntryKindRow = briefingEntryKind ? briefingEntryKind.closest(".admin-row") : null;
+const intelScopeLabel = document.querySelector('label[for="intelScope"]');
+const intelScopeRow = intelScope ? intelScope.closest(".admin-row") : null;
 const briefDocType = document.getElementById("briefDocType");
 const briefDocSubtypeSelect = document.getElementById("briefDocSubtypeSelect");
 const briefDocSubtypeSpecialWrap = document.getElementById("briefDocSubtypeSpecialWrap");
@@ -333,15 +339,37 @@ function setSingleSelectOption(selectEl, value, label) {
 function enforceAdminModeConstraints() {
     if (adminMode === "documents") {
         setSingleSelectOption(intelScope, "BRIEFING", "Briefing Room");
-        setSingleSelectOption(briefingEntryKind, "document", "Brief Document");
+        intelScope.disabled = true;
+        if (intelScope) intelScope.style.display = "none";
+        if (intelScopeLabel) intelScopeLabel.style.display = "none";
+        if (intelScopeRow && intelScopeRow.contains(intelScope)) intelScopeRow.style.display = "none";
+
+        if (briefingEntryKind) {
+            briefingEntryKind.innerHTML = "";
+            const optionDoc = document.createElement("option");
+            optionDoc.value = "document";
+            optionDoc.textContent = "Brief Document";
+            const optionEvent = document.createElement("option");
+            optionEvent.value = "event";
+            optionEvent.textContent = "Event Brief";
+            briefingEntryKind.appendChild(optionDoc);
+            briefingEntryKind.appendChild(optionEvent);
+            if (briefingEntryKind.value !== "document" && briefingEntryKind.value !== "event") {
+                briefingEntryKind.value = "document";
+            }
+            briefingEntryKind.disabled = false;
+        }
+        if (briefingEntryKindRow) briefingEntryKindRow.style.display = "flex";
     } else {
         setSingleSelectOption(intelScope, "LIVE", "Live");
         setSingleSelectOption(briefingEntryKind, "event", "Event Brief");
+        intelScope.disabled = true;
+        briefingEntryKind.disabled = true;
+        if (intelScope) intelScope.style.display = "none";
+        if (intelScopeLabel) intelScopeLabel.style.display = "none";
+        if (intelScopeRow && intelScopeRow.contains(intelScope)) intelScopeRow.style.display = "none";
+        if (briefingEntryKindRow) briefingEntryKindRow.style.display = "none";
     }
-
-    intelScope.disabled = true;
-    briefingEntryKind.disabled = true;
-    if (briefingEntryKindRow) briefingEntryKindRow.style.display = "none";
 }
 
 function getSelectedFrameKey() {
@@ -849,7 +877,7 @@ function clearForm() {
     briefingIndicators.value = "";
     briefingWhyMatters.value = "";
     briefingAssessment.value = "";
-    briefingEntryKind.value = "event";
+    briefingEntryKind.value = adminMode === "documents" ? "document" : "event";
     briefDocType.value = "scheduled";
     briefingTags.value = "";
     briefDocSubtypeSpecial.value = "";
@@ -871,11 +899,26 @@ function createIntelListItem(item, table) {
     const timestamp = item.updated_at || item.published_at || item.timestamp || item.created_at;
     const div = document.createElement("div");
     div.className = "intel-item";
+    const region = item.region || item.theater || "--";
+    const category = item.category || item.type || "--";
+    const risk = normalizeRiskLevel(item.risk_level || item.risk || "medium");
+    const confidence = normalizeConfidence(item.confidence || "medium");
+    const subtype = item.brief_subtype ? String(item.brief_subtype) : "";
+    const typeChip = table === BRIEF_DOCUMENTS_TABLE
+        ? normalizeBriefType(item.brief_type || "special").toUpperCase()
+        : (table === BRIEFING_INTEL_TABLE ? "EVENT BRIEF" : "LIVE");
+    const subtypeChip = table === BRIEF_DOCUMENTS_TABLE && subtype
+        ? `<span class="field-help" style="margin-left:6px;">${subtype}</span>`
+        : "";
 
     div.innerHTML = `
         <div class="intel-item-main">
             <div class="intel-item-title">${item.title || "Untitled"}</div>
-            <div class="intel-item-meta">${timestamp ? new Date(timestamp).toLocaleString() : "--"} • ${tableLabel(table)}</div>
+            <div class="intel-item-meta">${timestamp ? new Date(timestamp).toLocaleString() : "--"} • ${region} • ${category}</div>
+            <div class="intel-item-meta" style="margin-top:2px;">
+                <span>${typeChip}</span>${subtypeChip}
+                ${table !== LIVE_INTEL_TABLE ? ` • risk:${risk} • conf:${confidence}` : ""}
+            </div>
         </div>
         <div class="intel-item-actions">
             <button class="btn-secondary" data-id="${item.id}">EDIT</button>
@@ -901,36 +944,85 @@ function rowMatchesLibraryFilters(item) {
     return true;
 }
 
-function renderIntelListsFromCache() {
-    if (!liveIntelList || !briefingIntelList || !briefDocumentsList) return;
+function parsePublishTargets(raw) {
+    if (Array.isArray(raw)) return raw.map(v => String(v || "").trim().toLowerCase()).filter(Boolean);
+    const text = String(raw || "").trim().toLowerCase();
+    if (!text) return [];
+    if (text.startsWith("{") && text.endsWith("}")) {
+        return text.slice(1, -1).split(",").map(v => v.replace(/"/g, "").trim().toLowerCase()).filter(Boolean);
+    }
+    return [text];
+}
 
-    const liveRows = liveRowsCache.filter(rowMatchesLibraryFilters);
-    const briefingRows = eventRowsCache.filter(rowMatchesLibraryFilters);
-    const briefDocsRows = docsRowsCache.filter(rowMatchesLibraryFilters);
+function isLiveItem(item) {
+    const targets = parsePublishTargets(item.publish_to);
+    if (!targets.length) return true;
+    return targets.includes("live");
+}
+
+function isBriefingItem(item) {
+    const targets = parsePublishTargets(item.publish_to);
+    if (!targets.length) return true;
+    return targets.includes("briefing_room");
+}
+
+function renderIntelListsFromCache() {
+    if (!liveIntelList) return;
+
+    const liveRows = liveRowsCache
+        .filter(isLiveItem)
+        .filter(rowMatchesLibraryFilters);
+    const briefingRows = eventRowsCache
+        .filter(isBriefingItem)
+        .filter(rowMatchesLibraryFilters);
+    const briefDocsRows = docsRowsCache
+        .filter(isBriefingItem)
+        .filter(rowMatchesLibraryFilters);
+
+    const scheduledRows = briefDocsRows.filter(row => normalizeBriefType(row.brief_type) === "scheduled");
+    const regionalRows = briefDocsRows.filter(row => normalizeBriefType(row.brief_type) === "regional");
+    const specialRows = briefDocsRows.filter(row => normalizeBriefType(row.brief_type) === "special");
+
+    const eventBriefRows = briefingRows;
 
     liveIntelList.innerHTML = "";
-    briefingIntelList.innerHTML = "";
-    briefDocumentsList.innerHTML = "";
+    if (scheduledBriefDocsList) scheduledBriefDocsList.innerHTML = "";
+    if (regionalBriefDocsList) regionalBriefDocsList.innerHTML = "";
+    if (specialBriefDocsList) specialBriefDocsList.innerHTML = "";
+    if (briefingEventBriefsList) briefingEventBriefsList.innerHTML = "";
 
-    liveRows.forEach(item => liveIntelList.appendChild(createIntelListItem(item, LIVE_INTEL_TABLE)));
-    briefingRows.forEach(item => briefingIntelList.appendChild(createIntelListItem(item, BRIEFING_INTEL_TABLE)));
-    briefDocsRows.forEach(item => briefDocumentsList.appendChild(createIntelListItem(item, BRIEF_DOCUMENTS_TABLE)));
+    if (adminMode === "events") {
+        liveRows.forEach(item => liveIntelList.appendChild(createIntelListItem(item, LIVE_INTEL_TABLE)));
+        if (!liveRows.length) liveIntelList.innerHTML = '<div class="field-help">No matching live items.</div>';
+        return;
+    }
 
-    if (!liveRows.length) liveIntelList.innerHTML = '<div class="field-help">No matching live items.</div>';
-    if (!briefingRows.length) briefingIntelList.innerHTML = '<div class="field-help">No matching event briefs.</div>';
-    if (!briefDocsRows.length) briefDocumentsList.innerHTML = '<div class="field-help">No matching brief documents.</div>';
+    scheduledRows.forEach(item => scheduledBriefDocsList?.appendChild(createIntelListItem(item, BRIEF_DOCUMENTS_TABLE)));
+    regionalRows.forEach(item => regionalBriefDocsList?.appendChild(createIntelListItem(item, BRIEF_DOCUMENTS_TABLE)));
+    specialRows.forEach(item => specialBriefDocsList?.appendChild(createIntelListItem(item, BRIEF_DOCUMENTS_TABLE)));
+    eventBriefRows.forEach(item => briefingEventBriefsList?.appendChild(createIntelListItem(item, BRIEFING_INTEL_TABLE)));
+
+    if (scheduledBriefDocsList && !scheduledRows.length) scheduledBriefDocsList.innerHTML = '<div class="field-help">No scheduled briefs.</div>';
+    if (regionalBriefDocsList && !regionalRows.length) regionalBriefDocsList.innerHTML = '<div class="field-help">No regional briefings.</div>';
+    if (specialBriefDocsList && !specialRows.length) specialBriefDocsList.innerHTML = '<div class="field-help">No special briefs.</div>';
+    if (briefingEventBriefsList && !eventBriefRows.length) briefingEventBriefsList.innerHTML = '<div class="field-help">No event briefs.</div>';
 }
 
 async function loadIntelList() {
-    const [liveRows, briefingRows, briefDocsRows] = await Promise.all([
-        fetchTableRows(LIVE_INTEL_TABLE),
-        fetchTableRows(BRIEFING_INTEL_TABLE),
-        fetchTableRows(BRIEF_DOCUMENTS_TABLE)
-    ]);
-
-    liveRowsCache = liveRows;
-    eventRowsCache = briefingRows;
-    docsRowsCache = briefDocsRows;
+    if (adminMode === "events") {
+        const liveRows = await fetchTableRows(LIVE_INTEL_TABLE);
+        liveRowsCache = liveRows;
+        eventRowsCache = [];
+        docsRowsCache = [];
+    } else {
+        const [briefingRows, briefDocsRows] = await Promise.all([
+            fetchTableRows(BRIEFING_INTEL_TABLE),
+            fetchTableRows(BRIEF_DOCUMENTS_TABLE)
+        ]);
+        liveRowsCache = [];
+        eventRowsCache = briefingRows;
+        docsRowsCache = briefDocsRows;
+    }
     renderIntelListsFromCache();
 }
 
@@ -942,6 +1034,13 @@ function getDocumentSubtypeFromUI() {
 }
 
 async function loadIntelIntoEditor(item, table) {
+    if (table === LIVE_INTEL_TABLE) {
+        adminMode = "events";
+    } else {
+        adminMode = "documents";
+    }
+    setAdminMode(adminMode);
+
     editingIntelId = item.id;
     editingTable = table;
 
@@ -1041,9 +1140,13 @@ function setAdminMode(mode) {
     if (adminMode === "documents") {
         intelScope.value = "BRIEFING";
         briefingEntryKind.value = "document";
+        if (queueTitle) queueTitle.textContent = "BRIEFING ROOM QUEUE";
+        if (queueSubtitle) queueSubtitle.textContent = "Publishes to Briefing Room only.";
     } else {
         intelScope.value = "LIVE";
         briefingEntryKind.value = "event";
+        if (queueTitle) queueTitle.textContent = "LIVE QUEUE";
+        if (queueSubtitle) queueSubtitle.textContent = "Publishes to Live page and Latest Intel.";
     }
     enforceAdminModeConstraints();
     syncEditorModeUI();
@@ -1058,6 +1161,7 @@ function buildLivePayload() {
         category: intelCategory.value,
         timestamp: new Date(intelTimestamp.value).toISOString(),
         sources: intelSources.value.trim(),
+        publish_to: "live",
         lat: parseFloat(intelLat.value),
         lng: parseFloat(intelLng.value)
     };
@@ -1102,6 +1206,7 @@ function buildEventBriefPayload(isUpdate) {
         indicators,
         sources,
         source_links: sources,
+        publish_to: "briefing_room",
         lat,
         lng,
         coords: Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : null,
@@ -1263,7 +1368,10 @@ adminModeTabs?.addEventListener("click", e => {
     const button = e.target.closest(".admin-tab");
     if (!button) return;
     const mode = button.getAttribute("data-mode") || "events";
+    if (mode === adminMode) return;
     setAdminMode(mode);
+    clearForm();
+    loadIntelList();
 });
 
 adminListSearch?.addEventListener("input", e => {
