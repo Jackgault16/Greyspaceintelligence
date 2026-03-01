@@ -85,28 +85,51 @@ export const onRequestPost = async ({ request, env }) => {
     const enrichMap = await fetchWikidataEnrichment();
     const iso2List = rows.map(r => r.iso2);
 
-    const existingCountriesRes = await supabase.selectAll("countries", "iso2,name,capital,region,centroid_lat,centroid_lng");
+    const existingCountriesRes = await supabase.selectAll("countries", "iso2,name,capital,region");
     if (existingCountriesRes.error) return json({ error: existingCountriesRes.error }, 500);
     const existingCountries = (existingCountriesRes.data || []).filter(r => iso2List.includes(String(r.iso2 || "").toUpperCase()));
 
     const existingMap = new Map((existingCountries || []).map(r => [String(r.iso2).toUpperCase(), r]));
-    const upsertRows = rows.map(r => {
+    const baseCountryRows = rows.map(r => {
       const current = existingMap.get(r.iso2);
       return {
         iso2: r.iso2,
         name: r.name || current?.name || null,
         capital: r.capital ?? current?.capital ?? null,
-        region: r.region ?? current?.region ?? null,
-        centroid_lat: r.centroid_lat ?? current?.centroid_lat ?? null,
-        centroid_lng: r.centroid_lng ?? current?.centroid_lng ?? null
+        region: r.region ?? current?.region ?? null
       };
     });
 
-    const countriesInserted = upsertRows.filter(r => !existingMap.has(r.iso2)).length;
-    const countriesUpdated = upsertRows.length - countriesInserted;
+    const countriesInserted = baseCountryRows.filter(r => !existingMap.has(r.iso2)).length;
+    const countriesUpdated = baseCountryRows.length - countriesInserted;
 
-    if (upsertRows.length) {
-      const upsertCountriesRes = await supabase.upsert("countries", upsertRows, "iso2");
+    if (baseCountryRows.length) {
+      const withAllCentroidVariants = baseCountryRows.map((r, i) => ({
+        ...r,
+        centroid: toCentroidArray(rows[i].centroid_lng, rows[i].centroid_lat),
+        centroid_lat: rows[i].centroid_lat,
+        centroid_lng: rows[i].centroid_lng
+      }));
+      const withCentroidArrayOnly = baseCountryRows.map((r, i) => ({
+        ...r,
+        centroid: toCentroidArray(rows[i].centroid_lng, rows[i].centroid_lat)
+      }));
+      const withLatLngOnly = baseCountryRows.map((r, i) => ({
+        ...r,
+        centroid_lat: rows[i].centroid_lat,
+        centroid_lng: rows[i].centroid_lng
+      }));
+
+      let upsertCountriesRes = await supabase.upsert("countries", withAllCentroidVariants, "iso2");
+      if (upsertCountriesRes.error) {
+        upsertCountriesRes = await supabase.upsert("countries", withCentroidArrayOnly, "iso2");
+      }
+      if (upsertCountriesRes.error) {
+        upsertCountriesRes = await supabase.upsert("countries", withLatLngOnly, "iso2");
+      }
+      if (upsertCountriesRes.error) {
+        upsertCountriesRes = await supabase.upsert("countries", baseCountryRows, "iso2");
+      }
       if (upsertCountriesRes.error) return json({ error: upsertCountriesRes.error }, 500);
     }
 
@@ -188,7 +211,7 @@ export const onRequestPost = async ({ request, env }) => {
     }
 
     return json({
-      countriesProcessed: upsertRows.length,
+      countriesProcessed: baseCountryRows.length,
       countriesInserted,
       countriesUpdated,
       profilesCreated: createProfiles.length,
@@ -425,4 +448,11 @@ function createSupabaseRestClient(url, serviceRoleKey) {
   }
 
   return { selectAll, upsert };
+}
+
+function toCentroidArray(lng, lat) {
+  const lon = Number(lng);
+  const la = Number(lat);
+  if (!Number.isFinite(lon) || !Number.isFinite(la)) return null;
+  return [lon, la];
 }

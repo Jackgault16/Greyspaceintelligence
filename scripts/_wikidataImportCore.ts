@@ -140,7 +140,7 @@ export async function importWikidataCountries(supabase: SupabaseClient): Promise
 
   const { data: existingCountries, error: existingCountriesErr } = await supabase
     .from("countries")
-    .select("iso2,name,capital,region,centroid_lat,centroid_lng")
+    .select("iso2,name,capital,region")
     .in("iso2", iso2List);
 
   if (existingCountriesErr) {
@@ -149,25 +149,42 @@ export async function importWikidataCountries(supabase: SupabaseClient): Promise
 
   const existingMap = new Map<string, any>((existingCountries || []).map(r => [String(r.iso2).toUpperCase(), r]));
 
-  const upsertRows = rows.map(row => {
+  const baseRows = rows.map(row => {
     const current = existingMap.get(row.iso2);
     const merged = {
       iso2: row.iso2,
       name: row.name || current?.name || null,
       capital: row.capital ?? current?.capital ?? null,
-      region: row.region ?? current?.region ?? null,
-      centroid_lat: row.centroid_lat ?? current?.centroid_lat ?? null,
-      centroid_lng: row.centroid_lng ?? current?.centroid_lng ?? null
+      region: row.region ?? current?.region ?? null
     };
     return merged;
   });
 
-  const inserted = upsertRows.filter(r => !existingMap.has(r.iso2)).length;
-  const updated = upsertRows.length - inserted;
+  const inserted = baseRows.filter(r => !existingMap.has(r.iso2)).length;
+  const updated = baseRows.length - inserted;
 
-  if (upsertRows.length) {
-    const { error } = await supabase.from("countries").upsert(upsertRows, { onConflict: "iso2" });
-    if (error) throw new Error(`Country upsert failed: ${error.message}`);
+  if (baseRows.length) {
+    const withAllCentroidVariants = baseRows.map((r, i) => ({
+      ...r,
+      centroid: toCentroidArray(rows[i].centroid_lng, rows[i].centroid_lat),
+      centroid_lat: rows[i].centroid_lat,
+      centroid_lng: rows[i].centroid_lng
+    }));
+    const withCentroidArrayOnly = baseRows.map((r, i) => ({
+      ...r,
+      centroid: toCentroidArray(rows[i].centroid_lng, rows[i].centroid_lat)
+    }));
+    const withLatLngOnly = baseRows.map((r, i) => ({
+      ...r,
+      centroid_lat: rows[i].centroid_lat,
+      centroid_lng: rows[i].centroid_lng
+    }));
+
+    let result = await supabase.from("countries").upsert(withAllCentroidVariants, { onConflict: "iso2" });
+    if (result.error) result = await supabase.from("countries").upsert(withCentroidArrayOnly, { onConflict: "iso2" });
+    if (result.error) result = await supabase.from("countries").upsert(withLatLngOnly, { onConflict: "iso2" });
+    if (result.error) result = await supabase.from("countries").upsert(baseRows, { onConflict: "iso2" });
+    if (result.error) throw new Error(`Country upsert failed: ${result.error.message}`);
   }
 
   const { data: existingProfiles, error: existingProfilesErr } = await supabase
@@ -266,7 +283,7 @@ export async function importWikidataCountries(supabase: SupabaseClient): Promise
   }
 
   return {
-    countriesProcessed: upsertRows.length,
+    countriesProcessed: baseRows.length,
     countriesInserted: inserted,
     countriesUpdated: updated,
     profilesCreated: createProfiles.length,
@@ -363,6 +380,11 @@ function normalizeSources(raw: any): string[] {
   if (Array.isArray(raw)) return raw.map(v => String(v).trim()).filter(Boolean);
   if (typeof raw === "string") return raw.split(",").map(v => v.trim()).filter(Boolean);
   return [];
+}
+
+function toCentroidArray(lng: number | null, lat: number | null): number[] | null {
+  if (!Number.isFinite(Number(lng)) || !Number.isFinite(Number(lat))) return null;
+  return [Number(lng), Number(lat)];
 }
 
 function buildAutoNarrative(category: Category, enrich: any, currentNarrative: any): string | null {
