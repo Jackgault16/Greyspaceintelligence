@@ -27,6 +27,7 @@
   grid-template-columns: minmax(240px, 360px) 1fr 140px;
   gap: 12px;
   align-items: end;
+  overflow: visible;
 }
 
 .country-picker label,

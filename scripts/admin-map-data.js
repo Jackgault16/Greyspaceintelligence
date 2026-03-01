@@ -118,6 +118,22 @@ countryPickerInput?.addEventListener("change", () => {
 });
 countryPickerInput?.addEventListener("input", renderCountrySearchResults);
 countryPickerInput?.addEventListener("focus", renderCountrySearchResults);
+countryPickerInput?.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const typedIso = parseIsoFromPicker(countryPickerInput.value);
+  if (typedIso) {
+    countrySearchResults?.classList.remove("open");
+    trySwitch(() => setSelectedCountry(typedIso));
+    return;
+  }
+  const first = countrySearchResults?.querySelector(".search-item[data-iso2]");
+  const iso = first?.getAttribute("data-iso2");
+  if (iso) {
+    countryPickerInput.value = `${countries.find(c => c.iso2 === iso)?.name || iso} (${iso})`;
+    countrySearchResults?.classList.remove("open");
+    trySwitch(() => setSelectedCountry(iso));
+  }
+});
 document.addEventListener("click", e => {
   if (!countrySearchResults) return;
   if (e.target === countryPickerInput || countrySearchResults.contains(e.target)) return;

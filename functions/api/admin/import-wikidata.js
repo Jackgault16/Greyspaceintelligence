@@ -110,7 +110,7 @@ export const onRequestPost = async ({ request, env }) => {
       if (upsertCountriesRes.error) return json({ error: upsertCountriesRes.error }, 500);
     }
 
-    const existingProfilesRes = await supabase.selectAll("country_profiles", "id,iso2,category,metrics,sources");
+    const existingProfilesRes = await supabase.selectAll("country_profiles", "id,iso2,category,metrics,narrative,sources");
     if (existingProfilesRes.error) return json({ error: existingProfilesRes.error }, 500);
     const existingProfiles = (existingProfilesRes.data || []).filter(p => iso2List.includes(String(p.iso2 || "").toUpperCase()));
 
@@ -135,7 +135,7 @@ export const onRequestPost = async ({ request, env }) => {
       if (upsertProfilesRes.error) return json({ error: upsertProfilesRes.error }, 500);
     }
 
-    const allProfilesRes = await supabase.selectAll("country_profiles", "id,iso2,category,metrics,sources");
+    const allProfilesRes = await supabase.selectAll("country_profiles", "id,iso2,category,metrics,narrative,sources");
     if (allProfilesRes.error) return json({ error: allProfilesRes.error }, 500);
     const allProfiles = (allProfilesRes.data || []).filter(p => iso2List.includes(String(p.iso2 || "").toUpperCase()));
 
@@ -171,11 +171,13 @@ export const onRequestPost = async ({ request, env }) => {
 
       const nextSources = normalizeSources(row.sources);
       if (!nextSources.includes("Wikidata (CC0)")) nextSources.push("Wikidata (CC0)");
+      const nextNarrative = buildAutoNarrative(category, enrich, row.narrative);
       enrichUpdates.push({
         id: row.id,
         iso2,
         category,
         metrics: nextMetrics,
+        narrative: nextNarrative,
         sources: nextSources
       });
     }
@@ -348,6 +350,44 @@ function normalizeSources(raw) {
   if (Array.isArray(raw)) return raw.map(v => String(v).trim()).filter(Boolean);
   if (typeof raw === "string") return raw.split(",").map(v => v.trim()).filter(Boolean);
   return [];
+}
+
+function buildAutoNarrative(category, enrich, currentNarrative) {
+  const current = String(currentNarrative || "").trim();
+  if (current) return current;
+
+  if (category === "political" && (enrich.governmentLabel || enrich.headOfStateLabel || enrich.headOfGovernmentLabel)) {
+    const bits = [
+      enrich.governmentLabel ? `Government: ${enrich.governmentLabel}` : "",
+      enrich.headOfStateLabel ? `Head of state: ${enrich.headOfStateLabel}` : "",
+      enrich.headOfGovernmentLabel ? `Head of government: ${enrich.headOfGovernmentLabel}` : ""
+    ].filter(Boolean);
+    return bits.join(". ");
+  }
+  if (category === "economic" && (enrich.gdp || enrich.gdpPerCapita || enrich.currencyLabel)) {
+    const bits = [
+      enrich.gdp ? `GDP ${formatMoney(enrich.gdp)}` : "",
+      enrich.gdpPerCapita ? `GDP per capita ${formatMoney(enrich.gdpPerCapita)}` : "",
+      enrich.currencyLabel ? `Currency: ${enrich.currencyLabel}` : ""
+    ].filter(Boolean);
+    return bits.join(". ");
+  }
+  if (category === "social" && (enrich.population || enrich.lifeExpectancy || enrich.hdi)) {
+    const bits = [
+      enrich.population ? `Population ${formatInt(enrich.population)}` : "",
+      enrich.lifeExpectancy ? `Life expectancy ${formatYears(enrich.lifeExpectancy)}` : "",
+      enrich.hdi ? `HDI ${formatDecimal(enrich.hdi, 3)}` : ""
+    ].filter(Boolean);
+    return bits.join(". ");
+  }
+  if (category === "military" && (enrich.militaryPersonnel || enrich.defenseSpending)) {
+    const bits = [
+      enrich.militaryPersonnel ? `Active personnel ${formatInt(enrich.militaryPersonnel)}` : "",
+      enrich.defenseSpending ? `Defense spending ${formatMoney(enrich.defenseSpending)}` : ""
+    ].filter(Boolean);
+    return bits.join(". ");
+  }
+  return null;
 }
 
 function json(data, status = 200) {

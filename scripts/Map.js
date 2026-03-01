@@ -292,7 +292,7 @@ function renderProfile(profile) {
   const metrics = profile?.metrics && typeof profile.metrics === "object" ? profile.metrics : {};
   const entries = Object.entries(metrics);
   metricsGrid.innerHTML = entries.length
-    ? entries.map(([k, v]) => `<div class="metric-cell"><div class="metric-k">${escapeHtml(k)}</div><div class="metric-v">${escapeHtml(String(v))}</div></div>`).join("")
+    ? entries.map(([k, v]) => `<div class="metric-cell"><div class="metric-k">${escapeHtml(k)}</div><div class="metric-v">${escapeHtml(String(v ?? "").trim() || "—")}</div></div>`).join("")
     : `<div class="muted">No data yet for this category.</div>`;
   narrativeEl.textContent = profile?.narrative || "No narrative available.";
   const sources = parseCsvOrArray(profile?.sources);

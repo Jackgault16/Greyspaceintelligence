@@ -206,7 +206,7 @@ export async function importWikidataCountries(supabase: SupabaseClient): Promise
 
   const { data: fullProfiles, error: fullProfilesErr } = await supabase
     .from("country_profiles")
-    .select("id,iso2,category,metrics,sources")
+    .select("id,iso2,category,metrics,narrative,sources")
     .in("iso2", iso2List);
 
   if (fullProfilesErr) {
@@ -248,12 +248,14 @@ export async function importWikidataCountries(supabase: SupabaseClient): Promise
 
     const nextSources = normalizeSources(row.sources);
     if (!nextSources.includes("Wikidata (CC0)")) nextSources.push("Wikidata (CC0)");
+    const nextNarrative = buildAutoNarrative(category, enrich, row.narrative);
 
     enrichUpdates.push({
       id: row.id,
       iso2,
       category,
       metrics: nextMetrics,
+      narrative: nextNarrative,
       sources: nextSources
     });
   }
@@ -361,4 +363,46 @@ function normalizeSources(raw: any): string[] {
   if (Array.isArray(raw)) return raw.map(v => String(v).trim()).filter(Boolean);
   if (typeof raw === "string") return raw.split(",").map(v => v.trim()).filter(Boolean);
   return [];
+}
+
+function buildAutoNarrative(category: Category, enrich: any, currentNarrative: any): string | null {
+  const current = String(currentNarrative || "").trim();
+  if (current) return current;
+
+  if (category === "political" && (enrich.governmentLabel || enrich.headOfStateLabel || enrich.headOfGovernmentLabel)) {
+    const bits = [
+      enrich.governmentLabel ? `Government: ${enrich.governmentLabel}` : "",
+      enrich.headOfStateLabel ? `Head of state: ${enrich.headOfStateLabel}` : "",
+      enrich.headOfGovernmentLabel ? `Head of government: ${enrich.headOfGovernmentLabel}` : ""
+    ].filter(Boolean);
+    return bits.join(". ");
+  }
+
+  if (category === "economic" && (enrich.gdp || enrich.gdpPerCapita || enrich.currencyLabel)) {
+    const bits = [
+      enrich.gdp ? `GDP ${formatMoney(enrich.gdp)}` : "",
+      enrich.gdpPerCapita ? `GDP per capita ${formatMoney(enrich.gdpPerCapita)}` : "",
+      enrich.currencyLabel ? `Currency: ${enrich.currencyLabel}` : ""
+    ].filter(Boolean);
+    return bits.join(". ");
+  }
+
+  if (category === "social" && (enrich.population || enrich.lifeExpectancy || enrich.hdi)) {
+    const bits = [
+      enrich.population ? `Population ${formatInt(enrich.population)}` : "",
+      enrich.lifeExpectancy ? `Life expectancy ${formatYears(enrich.lifeExpectancy)}` : "",
+      enrich.hdi ? `HDI ${formatDecimal(enrich.hdi, 3)}` : ""
+    ].filter(Boolean);
+    return bits.join(". ");
+  }
+
+  if (category === "military" && (enrich.militaryPersonnel || enrich.defenseSpending)) {
+    const bits = [
+      enrich.militaryPersonnel ? `Active personnel ${formatInt(enrich.militaryPersonnel)}` : "",
+      enrich.defenseSpending ? `Defense spending ${formatMoney(enrich.defenseSpending)}` : ""
+    ].filter(Boolean);
+    return bits.join(". ");
+  }
+
+  return null;
 }
