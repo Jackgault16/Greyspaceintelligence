@@ -323,43 +323,50 @@ let mapResizeTimer = null;
 function fitHomeMapToViewport() {
     if (!intelMap) return;
 
-    const isSmallScreen = window.matchMedia("(max-width: 768px)").matches;
-    const horizontalPadding = isSmallScreen ? 8 : 24;
-    const verticalPadding = isSmallScreen ? 16 : 28;
+    // Force a rectangular projection so the map fills the section cleanly.
+    try {
+        intelMap.setProjection({ name: "mercator" });
+    } catch (_) {
+        // Older style/projection combos can throw; keep fallback below.
+    }
 
-    intelMap.fitBounds(
-        [
-            [-179.9, -58],
-            [179.9, 82]
-        ],
-        {
-            padding: {
-                top: verticalPadding,
-                bottom: verticalPadding,
-                left: horizontalPadding,
-                right: horizontalPadding
-            },
-            duration: 0
-        }
-    );
+    const isSmallScreen = window.matchMedia("(max-width: 768px)").matches;
+    const horizontalPadding = isSmallScreen ? 10 : 24;
+    const verticalPadding = isSmallScreen ? 14 : 24;
+
+    try {
+        intelMap.fitBounds(
+            [
+                [-170, -55],
+                [170, 75]
+            ],
+            {
+                padding: {
+                    top: verticalPadding,
+                    bottom: verticalPadding,
+                    left: horizontalPadding,
+                    right: horizontalPadding
+                },
+                duration: 0
+            }
+        );
+    } catch (_) {
+        intelMap.jumpTo({ center: [0, 18], zoom: isSmallScreen ? 0.95 : 1.18 });
+    }
 }
 
 if (intelMapContainer && typeof mapboxgl !== "undefined") {
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
-    const isPhone = window.matchMedia("(max-width: 480px)").matches;
-    const initialCenter = isPhone ? [0, 8] : [0, 0];
-    const initialZoom = isPhone ? 0.72 : 1.0;
-
     intelMap = new mapboxgl.Map({
         container: "intel-map",
         style: "mapbox://styles/mapbox/dark-v11",
-        center: initialCenter,
-        zoom: initialZoom,
+        center: [0, 18],
+        zoom: 1.12,
         pitch: 0,
         bearing: 0,
         attributionControl: false,
-        projection: "equalEarth"
+        projection: "mercator"
     });
 
     intelMap.dragRotate.disable();

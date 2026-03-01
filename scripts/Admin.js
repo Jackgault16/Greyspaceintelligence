@@ -1,4 +1,4 @@
-// ===============================
+﻿// ===============================
 // TYPE NOTES (runtime JS, TS-style unions documented)
 // BriefType: 'scheduled' | 'regional' | 'special'
 // BriefSubtype: scheduled keys or region keys or free text
@@ -86,6 +86,7 @@ let adminMarker = null;
 let briefPinsMap = null;
 let briefPins = [];
 let briefPinMarkers = [];
+let briefPinsBaselineHash = "[]";
 
 function generateUuid() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -94,6 +95,31 @@ function generateUuid() {
         const v = c === "x" ? r : (r & 0x3) | 0x8;
         return v.toString(16);
     });
+}
+
+function isUuid(value) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
+function normalizedPinsForHash(pins) {
+    return pins.map(pin => ({
+        id: String(pin.id || ""),
+        label: String(pin.label || "").trim(),
+        latitude: Number(pin.latitude),
+        longitude: Number(pin.longitude),
+        region: String(pin.region || "").trim(),
+        category: String(pin.category || "").trim(),
+        risk_level: normalizeRiskLevel(pin.risk_level || "medium"),
+        event_id: isUuid(pin.event_id) ? String(pin.event_id).trim() : ""
+    }));
+}
+
+function pinsHash(pins) {
+    try {
+        return JSON.stringify(normalizedPinsForHash(pins));
+    } catch (_) {
+        return "[]";
+    }
 }
 
 function normalizeRiskLevel(value) {
@@ -266,7 +292,12 @@ function syncEditorModeUI() {
     const isDocument = isBriefing && getBriefingEntryKind() === "document";
     briefDocumentTypeFields.style.display = isDocument ? "block" : "none";
     if (briefPinsSection) briefPinsSection.style.display = isDocument ? "block" : "none";
-    if (isDocument) initBriefPinsMap();
+    if (isDocument) {
+        initBriefPinsMap();
+        if (briefPinsMap) {
+            setTimeout(() => briefPinsMap.resize(), 80);
+        }
+    }
     fillSubtypeOptions();
 }
 
@@ -503,13 +534,15 @@ function renderBriefPins() {
     `).join("");
 
     briefPinsList.querySelectorAll(".pin-input").forEach(el => {
-        el.addEventListener("input", e => {
+        const onPinChange = e => {
             const pinId = e.target.getAttribute("data-pin-id");
             const field = e.target.getAttribute("data-field");
             const pin = briefPins.find(p => p.id === pinId);
             if (!pin || !field) return;
             pin[field] = e.target.value;
-        });
+        };
+        el.addEventListener("input", onPinChange);
+        el.addEventListener("change", onPinChange);
     });
 
     briefPinsList.querySelectorAll(".pin-delete-btn").forEach(btn => {
@@ -526,6 +559,7 @@ function renderBriefPins() {
 async function loadBriefPins(briefId) {
     if (!briefId) {
         briefPins = [];
+        briefPinsBaselineHash = "[]";
         renderBriefPins();
         return;
     }
@@ -539,6 +573,7 @@ async function loadBriefPins(briefId) {
     if (error) {
         console.error("Failed loading brief pins:", error);
         briefPins = [];
+        briefPinsBaselineHash = "[]";
         renderBriefPins();
         return;
     }
@@ -555,6 +590,7 @@ async function loadBriefPins(briefId) {
         created_at: pin.created_at || new Date().toISOString()
     }));
 
+    briefPinsBaselineHash = pinsHash(briefPins);
     renderBriefPins();
 }
 
@@ -589,7 +625,7 @@ async function syncBriefPins(briefId) {
             region: String(pin.region || "").trim() || null,
             category: String(pin.category || "").trim() || null,
             risk_level: normalizeRiskLevel(pin.risk_level || "medium"),
-            event_id: String(pin.event_id || "").trim() || null
+            event_id: isUuid(pin.event_id) ? String(pin.event_id).trim() : null
         }))
         .filter(row => Number.isFinite(row.latitude) && Number.isFinite(row.longitude));
 
@@ -670,6 +706,7 @@ function clearForm() {
     briefingTags.value = "";
     briefDocSubtypeSpecial.value = "";
     briefPins = [];
+    briefPinsBaselineHash = "[]";
     renderBriefPins();
 
     fillSubtypeOptions();
@@ -779,6 +816,7 @@ async function loadIntelIntoEditor(item, table) {
         briefDocType.value = "scheduled";
         briefDocSubtypeSpecial.value = "";
         briefPins = [];
+        briefPinsBaselineHash = "[]";
         renderBriefPins();
         fillSubtypeOptions();
     }
@@ -941,11 +979,16 @@ publishButton.addEventListener("click", async () => {
 
     if (table === BRIEF_DOCUMENTS_TABLE) {
         const briefId = payload.id || editingIntelId;
-        const pinSync = await syncBriefPins(briefId);
-        if (pinSync.error) {
-            setEditorStatus(`Brief saved, but pin sync failed: ${getErrorText(pinSync.error) || "Unknown error"}`);
-            console.error(pinSync.error);
-            return;
+        const pinChanged = pinsHash(briefPins) !== briefPinsBaselineHash;
+
+        if (pinChanged) {
+            const pinSync = await syncBriefPins(briefId);
+            if (pinSync.error) {
+                setEditorStatus(`Brief saved, but pins could not sync: ${getErrorText(pinSync.error) || "Unknown error"}`);
+                console.error(pinSync.error);
+            } else {
+                briefPinsBaselineHash = pinsHash(briefPins);
+            }
         }
     }
 
