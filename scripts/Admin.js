@@ -63,6 +63,7 @@ const briefingIndicators = document.getElementById("briefingIndicators");
 const briefingWhyMatters = document.getElementById("briefingWhyMatters");
 const briefingAssessment = document.getElementById("briefingAssessment");
 const briefingEntryKind = document.getElementById("briefingEntryKind");
+const briefingEntryKindRow = briefingEntryKind ? briefingEntryKind.closest(".admin-row") : null;
 const briefDocType = document.getElementById("briefDocType");
 const briefDocSubtypeSelect = document.getElementById("briefDocSubtypeSelect");
 const briefDocSubtypeSpecialWrap = document.getElementById("briefDocSubtypeSpecialWrap");
@@ -317,6 +318,30 @@ function syncEditorModeUI() {
         }
     }
     fillSubtypeOptions();
+}
+
+function setSingleSelectOption(selectEl, value, label) {
+    if (!selectEl) return;
+    selectEl.innerHTML = "";
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label;
+    selectEl.appendChild(opt);
+    selectEl.value = value;
+}
+
+function enforceAdminModeConstraints() {
+    if (adminMode === "documents") {
+        setSingleSelectOption(intelScope, "BRIEFING", "Briefing Room");
+        setSingleSelectOption(briefingEntryKind, "document", "Brief Document");
+    } else {
+        setSingleSelectOption(intelScope, "LIVE", "Live");
+        setSingleSelectOption(briefingEntryKind, "event", "Event Brief");
+    }
+
+    intelScope.disabled = true;
+    briefingEntryKind.disabled = true;
+    if (briefingEntryKindRow) briefingEntryKindRow.style.display = "none";
 }
 
 function getSelectedFrameKey() {
@@ -835,6 +860,7 @@ function clearForm() {
     renderBriefPins();
 
     fillSubtypeOptions();
+    enforceAdminModeConstraints();
     setAutoTimestamp();
     deleteButton.style.display = "none";
     setEditorStatus("");
@@ -986,6 +1012,7 @@ async function loadIntelIntoEditor(item, table) {
     }
 
     deleteButton.style.display = "inline-block";
+    enforceAdminModeConstraints();
     syncEditorModeUI();
 }
 
@@ -1014,9 +1041,11 @@ function setAdminMode(mode) {
     if (adminMode === "documents") {
         intelScope.value = "BRIEFING";
         briefingEntryKind.value = "document";
-    } else if (getScopeMode() === "BRIEFING" && getBriefingEntryKind() === "document") {
+    } else {
+        intelScope.value = "LIVE";
         briefingEntryKind.value = "event";
     }
+    enforceAdminModeConstraints();
     syncEditorModeUI();
 }
 
@@ -1209,10 +1238,13 @@ deleteButton.addEventListener("click", async () => {
 
 resetFormButton.addEventListener("click", clearForm);
 intelScope.addEventListener("change", () => {
-    clearForm();
+    enforceAdminModeConstraints();
     syncEditorModeUI();
 });
-briefingEntryKind.addEventListener("change", syncEditorModeUI);
+briefingEntryKind.addEventListener("change", () => {
+    enforceAdminModeConstraints();
+    syncEditorModeUI();
+});
 briefDocType.addEventListener("change", fillSubtypeOptions);
 briefDocSubtypeSelect.addEventListener("change", () => {
     didInitBriefPinsView = false;
@@ -1296,6 +1328,7 @@ async function showAdminView(user) {
     setAutoTimestamp();
     populateAdminRegionFilter();
     fillSubtypeOptions();
+    enforceAdminModeConstraints();
     syncEditorModeUI();
     setAdminMode("events");
     renderBriefPins();
